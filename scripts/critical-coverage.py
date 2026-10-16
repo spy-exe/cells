@@ -8,7 +8,7 @@ for line in profile.read_text().splitlines()[1:]:
     statements,covered=blocks.get(block,(int(count),False))
     blocks[block]=(statements,covered or int(hits)>0)
 failed=False
-for package in ['engine','protocol','bot']:
+for package in ['engine','protocol','bot','training']:
     selected=[v for k,v in blocks.items() if f'/internal/{package}/' in k]
     total=sum(v[0] for v in selected)
     pct=100*sum(n for n,covered in selected if covered)/total if total else 0
