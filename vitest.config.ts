@@ -1,2 +1,10 @@
-import { defineConfig } from 'vitest/config';
-export default defineConfig({test:{include:['tests/unit/**/*.test.ts'],coverage:{include:['packages/**/*.ts'],reporter:['text','json-summary']}}});
+import { defineConfig } from "vitest/config";
+export default defineConfig({
+  test: {
+    include: ["tests/unit/**/*.test.ts"],
+    coverage: {
+      include: ["packages/**/*.ts"],
+      reporter: ["text", "json-summary"],
+    },
+  },
+});
