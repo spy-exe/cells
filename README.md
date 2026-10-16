@@ -8,7 +8,9 @@ Play: **https://cells.malha.app** · [Source](https://github.com/spy-exe/cells)
 Classic FFA is the first gameplay release. Guest sessions, movement, food,
 player consumption, split/eject, viruses, delayed merging, respawn, spectating,
 leaderboard, minimap and reconnection share the same server-owned world.
-Bots, training and further modes are delivered behind verified release gates;
+AI Arena adds eight visible-information tactical bots with five selectable profiles.
+Public Classic mixes bot profiles; private Classic rooms are human-only.
+Real learning experiments and further modes use separate release gates;
 see [scope](SPEC.md) and [continuity](CONTINUITY.md) for actual status.
 
 ## Development

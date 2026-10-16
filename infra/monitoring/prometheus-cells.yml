@@ -1,0 +1,8 @@
+# Append under the existing scrape_configs list; preserve all other jobs.
+  - job_name: cells
+    scrape_interval: 15s
+    scrape_timeout: 5s
+    static_configs:
+      - targets: ['10.10.1.220:9108']
+        labels:
+          project: cells
