@@ -304,3 +304,13 @@ be newer than the executable candidate; do not claim a newer SHA is active until
 readiness proves it. Production is still0.1 until that activation is verified.
 Continue original mission afterward: real bounded PPO +100episode evaluation,
 Teams/community and remaining ops gaps. Do not claim learned bots already exist.
+
+## Organic release work —2026-10-16
+
+Branch `feat/organic-expedition` starts from0.3.0 d128267. Commits5a4e764 and
+2fc4c1e add organic vector membranes/absorption/centered names/layering and cursor
+falloff plus24/32 bots. Expedição is a new isolated finite Rogue module, whose
+rules/API/rollback boundary are documented in `docs/game-design/expedition.md`.
+Publish0.3.1 with new-entry flag OFF first, then0.4.0 with `CELLS_EXPEDITION=1`.
+Both understand Rogue saves, so rollback from0.4 must use0.3.1 or newer.
+Production publication is confirmed only by exact `/readyz` and GitHub CI artifact.

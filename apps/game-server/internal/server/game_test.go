@@ -33,7 +33,7 @@ func TestGuestOriginValidationAndMultiplayer(t *testing.T) {
 	hub := game.New(st, 1600)
 	go hub.Run(ctx)
 	defer hub.Close(context.Background())
-	app := New(Config{Store: st, Hub: hub, Origin: "http://cells.test", Ready: pool.Ping})
+	app := New(Config{ExpeditionEnabled: true, Store: st, Hub: hub, Origin: "http://cells.test", Ready: pool.Ping})
 	ts := httptest.NewServer(app.Handler())
 	defer ts.Close()
 	join := func(origin, body string) *http.Response {
@@ -111,6 +111,63 @@ func TestGuestOriginValidationAndMultiplayer(t *testing.T) {
 	runResponse.Body.Close()
 	if err != nil || runResponse.StatusCode != 200 || !run.HasRun || !run.Alive || run.Peak < 36 || runResponse.Header.Get("Cache-Control") != "no-store" {
 		t.Fatal("own authoritative run summary", run, err)
+	}
+
+	// The solo mode is feature gated, session private, and rejects shared rooms.
+	for _, body := range []string{`{"nickname":"Solo","mode":"rogue","room":"friends"}`, `{"nickname":"Solo","mode":"rogue","spectate":true}`} {
+		bad := join("http://cells.test", body)
+		bad.Body.Close()
+		if bad.StatusCode != 400 {
+			t.Fatal("invalid expedition entry", bad.StatusCode)
+		}
+	}
+	disabled := httptest.NewServer(New(Config{Store: st, Hub: hub, Origin: "http://cells.test"}).Handler())
+	defer disabled.Close()
+	disabledReq, _ := http.NewRequest("POST", disabled.URL+"/api/guest", bytes.NewBufferString(`{"nickname":"Solo","mode":"rogue"}`))
+	disabledReq.Header.Set("Origin", "http://cells.test")
+	disabledResponse, err := http.DefaultClient.Do(disabledReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	disabledResponse.Body.Close()
+	if disabledResponse.StatusCode != 400 {
+		t.Fatal("disabled mode admitted guest")
+	}
+	solo := join("http://cells.test", `{"nickname":"Solo","mode":"rogue"}`)
+	solo.Body.Close()
+	if solo.StatusCode != 201 {
+		t.Fatal("solo session", solo.StatusCode)
+	}
+	cs := conn(solo)
+	defer cs.CloseNow()
+	if _, _, err = cs.Read(ctx); err != nil {
+		t.Fatal(err)
+	}
+	for _, scene := range []struct {
+		method, path, origin, body string
+		cookie                     bool
+		code                       int
+	}{
+		{"GET", "/api/expedition", "", "", false, 401},
+		{"GET", "/api/expedition?player=foreign", "", "", true, 200},
+		{"POST", "/api/expedition/mutation", "http://evil.test", `{"mutation":"cilia","revision":1}`, true, 403},
+		{"POST", "/api/expedition/mutation", "http://cells.test", `{"mutation":"cilia","revision":1}`, false, 401},
+		{"POST", "/api/expedition/mutation", "http://cells.test", `{"mutation":"cilia","revision":1,"mass":500}`, true, 400},
+		{"POST", "/api/expedition/mutation", "http://cells.test", `{"mutation":"cilia","revision":1}`, true, 409},
+	} {
+		request, _ := http.NewRequest(scene.method, ts.URL+scene.path, bytes.NewBufferString(scene.body))
+		if scene.cookie {
+			request.AddCookie(solo.Cookies()[0])
+		}
+		request.Header.Set("Origin", scene.origin)
+		response, e := http.DefaultClient.Do(request)
+		if e != nil {
+			t.Fatal(e)
+		}
+		response.Body.Close()
+		if response.StatusCode != scene.code {
+			t.Fatalf("%s %s: %d want %d", scene.method, scene.path, response.StatusCode, scene.code)
+		}
 	}
 	if err := ca.Write(ctx, websocket.MessageBinary, []byte{206, 2, 1}); err != nil {
 		t.Fatal(err)

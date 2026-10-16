@@ -90,3 +90,8 @@ it("reports real mass gains in batches without counting split, decay or respawn"
   expect(gains.update(0, false, 500)).toBeNull();
   expect(gains.update(36, true, 550)).toBeNull();
 });
+it("holds a paused world and resumes on the first fresh server sample", () => {
+ const t=new MotionTimeline();t.push(sample(30,1000,1000));t.entity(8,1100);
+ t.push(sample(30,1000,5000));t.push(sample(31,1010,5033));
+ expect(t.entity(8,5033)?.x).toBe(1010);
+});

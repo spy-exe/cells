@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-var version = "0.3.0"
+var version = "0.3.1"
 var revision = "dev"
 
 func env(key, fallback string) string {
@@ -64,7 +64,7 @@ func main() {
 		}()
 		defer metrics.Close()
 	}
-	app := server.New(server.Config{Version: version, Revision: revision, WebDir: env("CELLS_WEB_DIR", "dist/web"), Origin: env("CELLS_ORIGIN", "http://127.0.0.1:8080"), Ready: pool.Ping, Store: st, Hub: hub})
+	app := server.New(server.Config{ExpeditionEnabled: os.Getenv("CELLS_EXPEDITION") == "1", Version: version, Revision: revision, WebDir: env("CELLS_WEB_DIR", "dist/web"), Origin: env("CELLS_ORIGIN", "http://127.0.0.1:8080"), Ready: pool.Ping, Store: st, Hub: hub})
 	httpServer := &http.Server{Addr: env("CELLS_ADDR", "127.0.0.1:8080"), Handler: app.Handler(), ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 8192}
 	go func() {
 		slog.Info("cells started", "version", version, "revision", revision)

@@ -13,10 +13,12 @@ export class MotionTimeline {
   push(snapshot: Snapshot) {
     this.cachedAt = -Infinity;
     const latest = this.samples.at(-1)?.snapshot;
+    if (latest && snapshot.tick === latest.tick && snapshot.self === latest.self && snapshot.alive === latest.alive) return;
     const measured = snapshot.received - (snapshot.tick * 1000) / 30;
     if (
       !latest ||
       snapshot.tick < latest.tick ||
+      snapshot.received - latest.received > 500 ||
       snapshot.self !== latest.self ||
       snapshot.alive !== latest.alive
     ) {

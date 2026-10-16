@@ -18,6 +18,7 @@ import {
 import { ArenaRenderer } from "./arena-renderer";
 import { GrowthFeedback } from "./motion";
 import { GameSound } from "./sound";
+import { Expedition, useExpedition } from "./Expedition";
 
 interface Props {
   nickname: string;
@@ -25,6 +26,9 @@ interface Props {
   onLeave: () => void;
 }
 export function Game({ nickname, mode, onLeave }: Props) {
+  const expedition = useExpedition(mode === "rogue");
+  const expeditionRef = useRef(expedition.run); expeditionRef.current = expedition.run;
+  const canAct = () => mode !== "rogue" || expeditionRef.current?.phase === "running";
   const host = useRef<HTMLDivElement>(null),
     renderer = useRef<ArenaRenderer | null>(null),
     socket = useRef<WebSocket | null>(null),
@@ -45,7 +49,7 @@ export function Game({ nickname, mode, onLeave }: Props) {
   const [run, setRun] = useState<{ has_run: boolean; alive: boolean; peak: number; record: number; kills: number; seconds: number } | null>(null);
   const requestAction = (kind: number) => {
     const s = latest.current;
-    if (!s?.alive) return;
+    if (!s?.alive || !canAct()) return;
     const cells = s.entities.filter((e) => e.kind === 2 && e.owner === s.self);
     if (kind === 1 && (cells.length >= 16 || !cells.some((e) => e.mass >= 36)))
       return;
@@ -155,7 +159,7 @@ export function Game({ nickname, mode, onLeave }: Props) {
     const transmit = (extra = 0) => {
       const ws = socket.current,
         s = latest.current;
-      if (!s || ws?.readyState !== WebSocket.OPEN) return;
+      if (!s || ws?.readyState !== WebSocket.OPEN || !canAct()) return;
       let target = aim.current ?? { x: s.x, y: s.y };
       if (pointer.current && renderer.current)
         target = renderer.current.target(pointer.current.x, pointer.current.y);
@@ -196,7 +200,7 @@ export function Game({ nickname, mode, onLeave }: Props) {
   }, [retry]);
   useEffect(() => () => sound.current.destroy(), []);
   useEffect(() => {
-    if (!snapshot || snapshot.alive) { setRun(null); return; }
+    if (mode === "rogue" || !snapshot || snapshot.alive) { setRun(null); return; }
     const controller = new AbortController();
     void fetch("/api/run", { signal: controller.signal })
       .then(async response => {
@@ -215,7 +219,7 @@ export function Game({ nickname, mode, onLeave }: Props) {
       )
         return;
       const key = e.key.toLowerCase();
-      if (key === "r" && !e.repeat && latest.current && !latest.current.alive && latest.current.respawnIn === 0) {
+      if (key === "r" && !e.repeat && latest.current && (mode === "rogue" ? ["fallen","failed","victory"].includes(expeditionRef.current?.phase ?? "") : !latest.current.alive && latest.current.respawnIn === 0)) {
         aim.current = null; socket.current?.send(controlFrame(3)); return;
       }
       if (e.target instanceof HTMLButtonElement && key === " ") return;
@@ -295,7 +299,7 @@ export function Game({ nickname, mode, onLeave }: Props) {
             ? "AI Arena"
             : mode === "teams"
               ? "Teams"
-              : "Classic FFA"}
+              : mode === "rogue" ? "Expedição" : "Classic FFA"}
         </span>
         <button className="icon-button sound-control" aria-label={audio ? "Desativar sons" : "Ativar sons"}
           aria-pressed={audio} onClick={() => {
@@ -329,7 +333,7 @@ export function Game({ nickname, mode, onLeave }: Props) {
             : "Entrando…"}
         </small>
       </section>
-      <aside className="leaderboard" aria-label="Maiores células">
+      {mode !== "rogue" && <aside className="leaderboard" aria-label="Maiores células">
         <h2>
           Na liderança<span>TOP 10</span>
         </h2>
@@ -344,7 +348,7 @@ export function Game({ nickname, mode, onLeave }: Props) {
             </li>
           ))}
         </ol>
-      </aside>
+      </aside>}
       <div className="connection-hud">
         <Wifi size={12} />
         <span>{connection}</span>
@@ -410,7 +414,7 @@ export function Game({ nickname, mode, onLeave }: Props) {
                 : "Espaço para dividir"
           }
           disabled={
-            !snapshot?.alive || !!snapshot.splitIn || !!splitRequirement
+            !canAct() || !snapshot?.alive || !!snapshot.splitIn || !!splitRequirement
           }
           onPointerDown={(e) => {
             e.preventDefault();
@@ -435,7 +439,7 @@ export function Game({ nickname, mode, onLeave }: Props) {
               : "Segure para ejetar massa"
           }
           disabled={
-            !snapshot?.alive || !!snapshot.ejectIn || !!ejectRequirement
+            !canAct() || !snapshot?.alive || !!snapshot.ejectIn || !!ejectRequirement
           }
           onPointerDown={(e) => {
             e.preventDefault();
@@ -461,7 +465,7 @@ export function Game({ nickname, mode, onLeave }: Props) {
           <span>{ejectRequirement || "Ejetar"}</span>
         </button>
       </div>
-      {(!snapshot || !snapshot.alive) && !error && !renderError && (
+      {mode !== "rogue" && (!snapshot || !snapshot.alive) && !error && !renderError && (
         <section
           className="arena-overlay"
           aria-label={snapshot ? "Fim da vida" : "Conectando"}
@@ -509,6 +513,7 @@ export function Game({ nickname, mode, onLeave }: Props) {
           )}
         </section>
       )}
+      {mode === "rogue" && !error && !renderError && <Expedition {...expedition} onRestart={() => { aim.current = null; socket.current?.send(controlFrame(3)); }} onLeave={onLeave} />}
       {(error || renderError) && (
         <section className="arena-overlay" role="alert">
           <h1>Uma pausa na conexão.</h1>

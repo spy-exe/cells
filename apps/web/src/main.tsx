@@ -33,7 +33,7 @@ function App() {
         body: JSON.stringify({
           nickname: spectate ? nickname.trim() || "Visitante" : nickname.trim(),
           mode,
-          room,
+          room: mode === "rogue" ? "" : room,
           profile,
           spectate,
         }),
@@ -214,7 +214,7 @@ function App() {
                         ? "Classic FFA"
                         : m === "arena"
                           ? "AI Arena"
-                          : "Teams"}
+                          : m === "rogue" ? "Expedição · experimental" : "Teams"}
                     </option>
                   ))}
                 </select>
@@ -240,7 +240,8 @@ function App() {
                 </p>
               </>
             )}
-            <details className="room-options">
+            {mode === "rogue" && <p className="foundation-note">Solo. Três setores de 25 segundos. Cresça, sobreviva e escolha mutações entre setores. Uma nova semente a cada tentativa.</p>}
+            {mode !== "rogue" && <details className="room-options">
               <summary>Jogar com amigos</summary>
               <label htmlFor="room">Mesmo código, mesma arena</label>
               <input
@@ -251,7 +252,7 @@ function App() {
                 onChange={(e) => setRoom(e.target.value.toLowerCase())}
               />
               <p>Escolha um código e compartilhe com seus amigos.</p>
-            </details>
+            </details>}
             {error && (
               <p className="form-error" role="alert">
                 {error}
@@ -278,7 +279,7 @@ function App() {
             Sem cadastro. Sem vantagens pagas. Só você, suas células e uma arena
             de possibilidades.
           </p>
-          {!!status?.modes.length && (
+          {!!status?.modes.length && mode !== "rogue" && (
             <button
               className="text-button"
               onClick={() => void join(true)}

@@ -127,6 +127,42 @@ func TestMovementSlowsNearCursorWithoutChangingFarSpeed(t *testing.T) {
 	}
 	invariant(t, w)
 }
+func TestExpeditionMutationsAffectRealMovementFoodAndMerge(t *testing.T) {
+	for mutation := 0; mutation < 3; mutation++ {
+		w := empty()
+		w.Config.Mode = Rogue
+		id := w.AddPlayer("Explorer", false, "")
+		place(w, id, 800, 800, 36)
+		w.Player(id).Mutations[mutation] = 1
+		switch mutation {
+		case 0:
+			_ = w.Input(id, 1500, 800, 0)
+			w.Step()
+			if math.Abs(w.Cells(id)[0].X-800-220.0/30*1.1) > .001 {
+				t.Fatal("speed mutation inactive")
+			}
+		case 1:
+			fixture(w, Food, 800, 800, 3)
+			_ = w.Input(id, 800, 800, 0)
+			w.Step()
+			if math.Abs(w.Mass(id)-39.6) > .001 {
+				t.Fatal("food mutation inactive", w.Mass(id))
+			}
+		case 2:
+			place(w, id, 800, 800, 100)
+			_ = w.Input(id, 1500, 800, Split)
+			w.Step()
+			if len(w.Cells(id)) != 2 || w.Cells(id)[0].MergeAt != 301 {
+				t.Fatal("cohesion mutation inactive", w.Cells(id))
+			}
+		}
+		invariant(t, w)
+		w.Config.Mode = Classic
+		if w.Valid() == nil {
+			t.Fatal("classic accepted rogue mutation")
+		}
+	}
+}
 func TestConsumptionRatioAndContainment(t *testing.T) {
 	w := empty()
 	a := w.AddPlayer("A", false, "")

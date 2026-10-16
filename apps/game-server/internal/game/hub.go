@@ -10,6 +10,7 @@ import (
 	"github.com/coder/websocket"
 	"github.com/spy-exe/cells/apps/game-server/internal/bot"
 	"github.com/spy-exe/cells/apps/game-server/internal/engine"
+	"github.com/spy-exe/cells/apps/game-server/internal/expedition"
 	"github.com/spy-exe/cells/apps/game-server/internal/protocol"
 	"github.com/spy-exe/cells/apps/game-server/internal/store"
 	"log/slog"
@@ -30,6 +31,8 @@ type Peer struct {
 	closed   atomic.Bool
 }
 type Room struct {
+	Seed       uint64
+	Expedition *expedition.Run `json:",omitempty"`
 	World      *engine.World
 	Identities map[string]uint32
 	Absent     map[uint32]time.Time
@@ -75,6 +78,9 @@ func (h *Hub) Load(ctx context.Context) error {
 			r.World.Config.Food = 3600
 		}
 		r.Peers = map[uint32]*Peer{}
+		if r.World.Config.Mode == engine.Rogue && (r.Expedition == nil || r.Expedition.Validate(r.World) != nil) {
+			return fmt.Errorf("invalid expedition checkpoint %s", v.Key)
+		}
 		if r.Memories == nil {
 			r.Memories = map[uint32]*bot.Memory{}
 		}
@@ -164,6 +170,9 @@ func (h *Hub) Join(s store.Session, c *websocket.Conn) (*Peer, error) {
 	if key == "" && s.Room != "" {
 		key = s.Mode + "-private-" + s.Room
 	}
+	if s.Mode == engine.Rogue {
+		key = "rogue-private-" + s.Hash
+	}
 	if key == "" {
 		for i := 0; i < 16; i++ {
 			candidate := fmt.Sprintf("%s-%s-public-%d", s.Mode, matchmakingProfile, i)
@@ -193,6 +202,7 @@ func (h *Hub) Join(s store.Session, c *websocket.Conn) (*Peer, error) {
 			cfg.Viruses = 8
 		}
 		r = &Room{World: engine.New(binary.LittleEndian.Uint64(seed[:]), cfg), Identities: map[string]uint32{}, Absent: map[uint32]time.Time{}, Peers: map[uint32]*Peer{}, Memories: map[uint32]*bot.Memory{}}
+		r.Seed = binary.LittleEndian.Uint64(seed[:])
 		// Private Classic rooms stay human-only, making friend sessions and public
 		// validation independent of bot interference. AI Arena always has agents.
 		populateBots(r, s.Mode, s.Room != "", s.Profile)
@@ -205,6 +215,9 @@ func (h *Hub) Join(s store.Session, c *websocket.Conn) (*Peer, error) {
 	if !ok {
 		id = r.World.AddPlayer(s.Nickname, false, "")
 		r.Identities[s.Hash] = id
+		if s.Mode == engine.Rogue {
+			r.Expedition = expedition.New(r.Seed, r.World, id)
+		}
 		if s.Spectator || s.Profile == "spectator" {
 			r.World.Spectate(id)
 		}
@@ -267,12 +280,21 @@ func (h *Hub) Input(p *Peer, in protocol.Input) error {
 	}
 	switch in.Kind {
 	case 1:
+		if r.Expedition != nil && r.Expedition.Phase != "running" {
+			return nil
+		}
 		if !r.World.Player(p.Player).Alive {
 			return nil
 		}
 		return r.World.Input(p.Player, in.X, in.Y, in.Actions)
 	case 3:
-		_ = r.World.Respawn(p.Player)
+		if r.Expedition != nil {
+			if r.Expedition.Phase != "running" && r.Expedition.Phase != "choice" {
+				restartExpedition(r, p)
+			}
+		} else {
+			_ = r.World.Respawn(p.Player)
+		}
 	case 4: // A dead player observes the leader; never receives hidden map data.
 	case 5:
 		select {
@@ -364,13 +386,14 @@ func (h *Hub) Run(ctx context.Context) {
 			h.mu.Lock()
 			for _, key := range h.keys() {
 				r := h.rooms[key]
-				if r.World.Tick%6 == 0 {
+				active := r.Expedition == nil || r.Expedition.Phase == "running"
+				if active && r.World.Tick%6 == 0 {
 					for _, player := range r.World.Players {
 						if !player.Bot {
 							continue
 						}
 						if !player.Alive {
-							if r.World.Tick > player.DiedAt+90 {
+							if r.Expedition == nil && r.World.Tick > player.DiedAt+90 {
 								_ = r.World.Respawn(player.ID)
 							}
 							continue
@@ -395,8 +418,13 @@ func (h *Hub) Run(ctx context.Context) {
 						}
 					}
 				}
-				r.World.Step()
-				if r.World.Tick%2 == 0 || r.World.ActionOccurred() {
+				if active {
+					r.World.Step()
+					if r.Expedition != nil {
+						r.Expedition.Advance(r.World)
+					}
+				}
+				if !active || r.World.Tick%2 == 0 || r.World.ActionOccurred() {
 					for id, p := range r.Peers {
 						b := protocol.Snapshot(r.World.Observe(id))
 						select {
@@ -442,7 +470,12 @@ func (h *Hub) Save(ctx context.Context) error {
 			copy.Seen = maps.Clone(m.Seen)
 			memories[id] = &copy
 		}
-		snapshots[key] = Room{World: &world, Identities: maps.Clone(r.Identities), Absent: maps.Clone(r.Absent), Memories: memories}
+		var run *expedition.Run
+		if r.Expedition != nil {
+			copy := *r.Expedition
+			run = &copy
+		}
+		snapshots[key] = Room{Seed: r.Seed, Expedition: run, World: &world, Identities: maps.Clone(r.Identities), Absent: maps.Clone(r.Absent), Memories: memories}
 	}
 	h.mu.Unlock()
 	var saved []store.SavedRoom

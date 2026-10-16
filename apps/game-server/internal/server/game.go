@@ -116,7 +116,8 @@ func (s *Server) routes(mux *http.ServeMux) {
 			return
 		}
 		input.Nickname = strings.TrimSpace(input.Nickname)
-		if !nickname(input.Nickname) || (input.Mode != "classic" && input.Mode != "arena") || len(input.Room) > 32 {
+		available := input.Mode == "classic" || input.Mode == "arena" || input.Mode == "rogue" && s.config.ExpeditionEnabled && input.Room == "" && !input.Spectate
+		if !nickname(input.Nickname) || !available || len(input.Room) > 32 {
 			writeJSON(w, 400, map[string]string{"error": "Use um apelido de 2 a 20 caracteres e um modo disponível."})
 			return
 		}
@@ -167,6 +168,49 @@ func (s *Server) routes(mux *http.ServeMux) {
 			return
 		}
 		writeJSON(w, 200, summary)
+	})
+	mux.HandleFunc("GET /api/expedition", func(w http.ResponseWriter, r *http.Request) {
+		v, err := s.session(r)
+		if err != nil {
+			writeJSON(w, 401, map[string]string{"error": "Sessão encerrada."})
+			return
+		}
+		if !s.limits.allow("expedition:"+v.Hash, 120, time.Minute) {
+			writeJSON(w, 429, map[string]string{"error": "Aguarde um momento."})
+			return
+		}
+		run, err := s.config.Hub.ExpeditionView(v.Hash)
+		if err != nil {
+			writeJSON(w, 404, map[string]string{"error": "Expedição não encontrada."})
+			return
+		}
+		writeJSON(w, 200, run)
+	})
+	mux.HandleFunc("POST /api/expedition/mutation", func(w http.ResponseWriter, r *http.Request) {
+		if !s.origin(w, r) {
+			return
+		}
+		v, err := s.session(r)
+		if err != nil {
+			writeJSON(w, 401, map[string]string{"error": "Sessão encerrada."})
+			return
+		}
+		if !s.limits.allow("mutation:"+v.Hash, 30, time.Minute) {
+			writeJSON(w, 429, map[string]string{"error": "Aguarde um momento."})
+			return
+		}
+		var input struct {
+			Mutation string `json:"mutation"`
+			Revision uint64 `json:"revision"`
+		}
+		if !decodeJSON(w, r, &input) {
+			return
+		}
+		if err := s.config.Hub.ChooseMutation(v.Hash, input.Mutation, input.Revision); err != nil {
+			writeJSON(w, 409, map[string]string{"error": "Esta escolha não está mais disponível."})
+			return
+		}
+		w.WriteHeader(204)
 	})
 	mux.HandleFunc("POST /api/logout", func(w http.ResponseWriter, r *http.Request) {
 		if !s.origin(w, r) {

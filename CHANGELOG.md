@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.1
+
+- Organic vector membranes and short food-absorption animations, with reduced motion.
+- Centered adaptive names and ascending mass layering; outline-free viruses.
+- Precise near-cursor movement,24 public Classic bots and32 AI Arena bots.
+- Compiled, validated solo Expedição module behind a disabled production flag;
+  compatible checkpoints establish a safe rollback baseline for its launch.
+
 ## 0.3.0
 
 - Elastic vector-cell motion, growth feedback, optional synthesized sounds and

@@ -1,4 +1,4 @@
-export type Mode = "classic" | "arena" | "teams";
+export type Mode = "classic" | "arena" | "teams" | "rogue";
 export interface Status {
   ok: boolean;
   ready: boolean;
@@ -17,7 +17,7 @@ export function parseStatus(value: unknown): Status {
     typeof v.version !== "string" ||
     typeof v.revision !== "string" ||
     !Array.isArray(v.modes) ||
-    v.modes.some((m) => !["classic", "arena", "teams"].includes(String(m))) ||
+    v.modes.some((m) => !["classic", "arena", "teams", "rogue"].includes(String(m))) ||
     typeof v.players !== "number" ||
     typeof v.bots !== "number"
   )

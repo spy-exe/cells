@@ -21,6 +21,7 @@ const (
 	Classic                  = "classic"
 	Teams                    = "teams"
 	Arena                    = "arena"
+	Rogue                    = "rogue"
 	TickRate                 = 30
 	MaxCells                 = 16
 	MaxEjected               = 512
@@ -41,6 +42,9 @@ type Config struct {
 }
 
 func DefaultConfig(mode string) Config {
+	if mode == Rogue {
+		return Config{Size: 3200, Food: 1400, Viruses: 10, Mode: Rogue}
+	}
 	return Config{Size: 6000, Food: 3600, Viruses: 24, Mode: mode}
 }
 
@@ -64,6 +68,7 @@ type Player struct {
 	RunBorn                  uint64
 	RunPeak                  float64
 	RunKills                 int
+	Mutations                [3]uint8
 	TargetX, TargetY         float64
 	Actions                  uint8
 	SplitAt, EjectAt, DiedAt uint64
@@ -85,7 +90,7 @@ func New(seed uint64, cfg Config) *World {
 	if cfg.Size < 800 || cfg.Size > 20000 || !finite(cfg.Size) {
 		cfg.Size = 6000
 	}
-	if cfg.Mode != Teams && cfg.Mode != Arena {
+	if cfg.Mode != Teams && cfg.Mode != Arena && cfg.Mode != Rogue {
 		cfg.Mode = Classic
 	}
 	cfg.Food = max(0, min(cfg.Food, 12000))
@@ -283,6 +288,9 @@ func (w *World) actions(p *Player) {
 			dx, dy := direction(p.TargetX-e.X, p.TargetY-e.Y)
 			e.Mass /= 2
 			e.MergeAt = w.Tick + 360 + uint64(e.Mass*.3)
+			if w.Config.Mode == Rogue && !p.Bot {
+				e.MergeAt = w.Tick + uint64(float64(e.MergeAt-w.Tick)*(1-.2*float64(p.Mutations[2])))
+			}
 			child := *e
 			child.ID = w.next()
 			child.Born = w.Tick
@@ -351,6 +359,9 @@ func (w *World) Step() {
 				d := math.Hypot(dx, dy)
 				speed := 220 * math.Pow(e.Mass/SpawnMass, -.25)
 				speed *= min(1, d/(Radius(e.Mass)*2.5))
+				if w.Config.Mode == Rogue && !p.Bot {
+					speed *= 1 + .1*float64(p.Mutations[0])
+				}
 				if d > .01 {
 					move := min(d, speed/TickRate)
 					e.X += dx / d * move
@@ -539,6 +550,13 @@ func (w *World) consume() {
 				continue
 			}
 			kind, owner := b.Kind, b.Owner
+			if kind == Food && w.Config.Mode == Rogue {
+				if p := w.Player(a.Owner); p != nil && !p.Bot {
+					bonus := b.Mass * .2 * float64(p.Mutations[1])
+					a.Mass += bonus
+					w.Sources += bonus
+				}
+			}
 			a.Mass += b.Mass
 			b.Mass = 0
 			if kind == Cell && w.Mass(owner) == 0 {
@@ -619,6 +637,13 @@ func (w *World) Valid() error {
 		return errors.New("invalid world")
 	}
 	ids := make(map[uint32]bool, len(w.Entities))
+	for _, p := range w.Players {
+		for _, rank := range p.Mutations {
+			if rank > 3 || w.Config.Mode != Rogue && rank != 0 {
+				return errors.New("invalid mutation rank/mode")
+			}
+		}
+	}
 	counts := map[uint32]int{}
 	for _, e := range w.Entities {
 		if e.ID == 0 || ids[e.ID] || e.Kind < Food || e.Kind > Virus || !finite(e.X) || !finite(e.Y) || !finite(e.Mass) || !finite(e.VX) || !finite(e.VY) || e.Mass <= 0 {
