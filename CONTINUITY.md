@@ -1,5 +1,33 @@
 # Cells — active handoff
 
+## Current organic candidate —2026-10-16 19:29 America/Sao_Paulo
+
+Candidate0.3.1 on `feat/organic-expedition`, engine/performance source4fb3db7.
+Previous production0.3.0 d128267. Organic membranes, visible food absorption,
+centered adaptive names (Unicode safe), mass ordering, outline-free viruses,
+near-cursor falloff,24 public Classic/32 AI Arena bots and staggered5Hz tactical
+updates are implemented. Private Classic remains human-only. Expedição is a
+real isolated seeded three-sector solo rules module with mutations and saves,
+behind `CELLS_EXPEDITION=0` by default. Rules in docs/game-design/expedition.md.
+First publish compatible0.3.1 OFF; then0.4.0 ON. Never roll back Rogue saves to
+older than0.3.1. Existing runs remain readable with the new-entry flag OFF.
+
+Verified local17TS, lint/typecheck/build, Go race/DB/vet; core90.6%, expedition
+95.6% before final validation guards; finalCI recomputes. Browser18 prior cases
+plus4 expedition cases pass across desktop/mobile after isolating runner outputs;
+see release0.3.1 report for the harness artifact-collision incident. Actual four
+native full-physics expedition playability seeds:17/42/91 win,123 dies in sector1.
+Final30-second25/50/100-client benchmark,32bots/room, source4fb3db7:100humans+
+224bots,29.958ticks/s,p99tick30.993ms,RSS32.8MB,0disconnects,0drops. Raw JSON in
+`docs/performance/0.3.1-load.json`; not WAN/soak/hardware-FPS measurement.
+
+Pending at this note: final mainCI/flag-OFF deploy/public smoke, then0.4.0 flag-ON
+release/public22-case suite and authenticated Rogue checkpoint/restart proof.
+QA and load services stopped; remove only nft rules tagged cells-qa before
+candidate uses8081. Do not start new training: PPO experiment is complete and
+failed promotion; CT221 remains stopped. Use the frozen source/binary if resuming.
+The older handoffs below are historical, not the current next steps.
+
 ## Learning and polish — 2026-10-16 17:44 America/Sao_Paulo
 
 Current delivery is0.3.0 on feat/learning-lab. Production was0.2.2/c11026d when

@@ -50,3 +50,6 @@ it("requires disappearance, a nearby existing cell and enough observed growth", 
   expect(detectAbsorptions(before,{entities:[{...cell,mass:37},food]} as Snapshot)).toEqual([]);
   expect(detectAbsorptions(before,{entities:[{...cell,mass:37,x:2000}]} as Snapshot)).toEqual([]);
 });
+it("keeps complete Unicode code points in tiny centered captions",()=>{
+ expect(cellCaption("🧬Bioma",false,5).text).toBe("🧬");
+});

@@ -57,9 +57,10 @@ export function detectAbsorptions(before: Snapshot, after: Snapshot) {
 }
 
 export function cellCaption(name: string, bot: boolean, screenRadius: number) {
+  const letters = Array.from(name);
   const font = Math.min(14, Math.max(10, screenRadius * .58));
   const capacity = Math.floor(Math.max(1, screenRadius * 2 - 4) / (font * .56));
   const max = Math.max(1, Math.min(14, capacity - (bot ? 3 : 0)));
-  const short = name.length > max ? max === 1 ? name[0] : `${name.slice(0, max - 1)}…` : name;
+  const short = letters.length > max ? max === 1 ? letters[0] : `${letters.slice(0, max - 1).join("")}…` : name;
   return { text: short + (bot ? "·IA" : ""), font };
 }
