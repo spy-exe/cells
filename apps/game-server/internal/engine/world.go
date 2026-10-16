@@ -187,6 +187,7 @@ func (w *World) spawn(id uint32) {
 	p.HasRun = true
 	p.RunBorn = w.Tick
 	p.RunPeak = SpawnMass
+	p.Peak = max(p.Peak, SpawnMass)
 	p.RunKills = 0
 	p.Actions = 0
 	p.TargetX = x

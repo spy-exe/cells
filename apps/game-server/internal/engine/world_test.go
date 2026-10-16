@@ -10,7 +10,7 @@ func TestRunSummaryResetsAtRespawnWhileRecordsRemain(t *testing.T) {
 	w := New(17, Config{Size: 1600, Mode: Classic})
 	id := w.AddPlayer("Runner", false, "")
 	p := w.Player(id)
-	if !p.HasRun || p.RunBorn != 0 || p.RunPeak != SpawnMass {
+	if !p.HasRun || p.RunBorn != 0 || p.RunPeak != SpawnMass || p.Peak != SpawnMass {
 		t.Fatal("spawn summary", p)
 	}
 	for i := range w.Entities {
