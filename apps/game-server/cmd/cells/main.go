@@ -49,7 +49,7 @@ func main() {
 		slog.Info("cells started", "version", version, "revision", revision)
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			slog.Error("server stopped unexpectedly")
-			stop()
+			os.Exit(1)
 		}
 	}()
 	<-ctx.Done()
