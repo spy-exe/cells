@@ -19,6 +19,34 @@ const fixture = () => {
   b.writeFloatLE(40000, 86);
   return b;
 };
+test("ações mostram a massa individual exigida após dividir", async ({
+  page,
+}) => {
+  await page.routeWebSocket("**/ws", (ws) => {
+    const b = fixture();
+    b.writeFloatLE(36, 28);
+    b.writeFloatLE(18, 69);
+    b.writeFloatLE(36, 86);
+    b.writeUInt16LE(2, 50);
+    const end = 77 + b[76],
+      child = Buffer.from(b.subarray(53, end));
+    child.writeUInt32LE(999, 0);
+    child.writeFloatLE(3100, 8);
+    ws.send(Buffer.concat([b.subarray(0, end), child, b.subarray(end)]));
+  });
+  await page.goto(`/?room=eligibility-${Date.now().toString(36)}`);
+  await page.getByLabel("Como você quer aparecer?").fill("Massa individual");
+  await page.getByRole("button", { name: "Entrar na arena" }).click();
+  await expect(page.getByTestId("mass")).toContainText("36");
+  await expect(
+    page.getByRole("button", { name: "Dividir célula" }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: "Ejetar massa" }),
+  ).toBeDisabled();
+  await expect(page.getByText("36 por célula", { exact: true })).toBeVisible();
+  await expect(page.getByText("32 por célula", { exact: true })).toBeVisible();
+});
 test("cenário visual: célula grande e W mantido sem esperar outro clique", async ({
   page,
 }, info) => {

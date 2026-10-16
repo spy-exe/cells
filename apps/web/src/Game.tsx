@@ -224,6 +224,19 @@ export function Game({ nickname, mode, onLeave }: Props) {
     pointer.current = { x, y };
     stick.current = null;
   };
+  const cells =
+    snapshot?.entities.filter(
+      (e) => e.kind === 2 && e.owner === snapshot.self,
+    ) ?? [];
+  const splitRequirement = !snapshot?.alive
+    ? ""
+    : cells.length >= 16
+      ? "Limite 16"
+      : !cells.some((e) => e.mass >= 36)
+        ? "36 por célula"
+        : "";
+  const ejectRequirement =
+    snapshot?.alive && !cells.some((e) => e.mass >= 32) ? "32 por célula" : "";
   return (
     <main className="game-shell" aria-label="Partida Cells">
       <div
@@ -349,7 +362,16 @@ export function Game({ nickname, mode, onLeave }: Props) {
       <div className="action-controls">
         <button
           aria-label="Dividir célula"
-          disabled={!snapshot?.alive || !!snapshot.splitIn}
+          title={
+            splitRequirement === "Limite 16"
+              ? "Limite de 16 células atingido"
+              : splitRequirement
+                ? "Uma célula precisa de massa 36 para dividir"
+                : "Espaço para dividir"
+          }
+          disabled={
+            !snapshot?.alive || !!snapshot.splitIn || !!splitRequirement
+          }
           onPointerDown={(e) => {
             e.preventDefault();
             requestAction(1);
@@ -363,12 +385,17 @@ export function Game({ nickname, mode, onLeave }: Props) {
             className={feedback.kind === 1 ? "action-feedback" : undefined}
             size={23}
           />
-          <span>Dividir</span>
+          <span>{splitRequirement || "Dividir"}</span>
         </button>
         <button
           aria-label="Ejetar massa"
+          title={
+            ejectRequirement
+              ? "Uma célula precisa de massa 32 para ejetar"
+              : "Segure para ejetar massa"
+          }
           disabled={
-            !snapshot?.alive || !!snapshot.ejectIn || snapshot.mass < 32
+            !snapshot?.alive || !!snapshot.ejectIn || !!ejectRequirement
           }
           onPointerDown={(e) => {
             e.preventDefault();
@@ -391,7 +418,7 @@ export function Game({ nickname, mode, onLeave }: Props) {
             className={feedback.kind === 2 ? "action-feedback" : undefined}
             size={21}
           />
-          <span>Ejetar</span>
+          <span>{ejectRequirement || "Ejetar"}</span>
         </button>
       </div>
       {(!snapshot || !snapshot.alive) && !error && !renderError && (
