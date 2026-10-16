@@ -1,0 +1,305 @@
+package engine
+
+import (
+	"encoding/json"
+	"math"
+	"testing"
+)
+
+func empty() *World { return New(7, Config{Size: 1600, Mode: Classic}) }
+func place(w *World, id uint32, x, y, mass float64) {
+	for i := range w.Entities {
+		e := &w.Entities[i]
+		if e.Owner == id && e.Kind == Cell {
+			w.Sources += mass - e.Mass
+			e.Mass = mass
+			e.X = x
+			e.Y = y
+			e.VX = 0
+			e.VY = 0
+		}
+	}
+}
+func fixture(w *World, kind Kind, x, y, mass float64) {
+	w.NextID++
+	w.Entities = append(w.Entities, Entity{ID: w.NextID, Kind: kind, X: x, Y: y, Mass: mass})
+	w.Sources += mass
+}
+func invariant(t *testing.T, w *World) {
+	t.Helper()
+	if err := w.Valid(); err != nil {
+		t.Fatal(err)
+	}
+	if math.Abs(w.TotalMass()+w.Sinks-w.Sources) > 1e-5 {
+		t.Fatalf("mass: total=%f sinks=%f sources=%f", w.TotalMass(), w.Sinks, w.Sources)
+	}
+}
+
+func TestMovementMassAndBounds(t *testing.T) {
+	w := empty()
+	small := w.AddPlayer("Small", false, "")
+	big := w.AddPlayer("Big", false, "")
+	place(w, small, 200, 300, 36)
+	place(w, big, 200, 1200, 360)
+	_ = w.Input(small, 1500, 300, 0)
+	_ = w.Input(big, 1500, 1200, 0)
+	for range 30 {
+		w.Step()
+	}
+	if w.Cells(small)[0].X-200 <= w.Cells(big)[0].X-200 {
+		t.Fatal("larger mass must move slower")
+	}
+	for range 600 {
+		w.Step()
+	}
+	invariant(t, w)
+	for _, e := range w.Entities {
+		if e.X < Radius(e.Mass) || e.X > w.Config.Size-Radius(e.Mass) {
+			t.Fatal("escaped map")
+		}
+	}
+}
+func TestConsumptionRatioAndContainment(t *testing.T) {
+	w := empty()
+	a := w.AddPlayer("A", false, "")
+	b := w.AddPlayer("B", false, "")
+	place(w, a, 800, 800, 100)
+	place(w, b, 800, 800, 90)
+	_ = w.Input(a, 800, 800, 0)
+	_ = w.Input(b, 800, 800, 0)
+	w.Step()
+	if !w.Player(b).Alive {
+		t.Fatal("near-equal mass cannot be eaten")
+	}
+	place(w, a, 800, 800, 150)
+	place(w, b, 800, 800, 90)
+	w.Step()
+	if w.Player(b).Alive || w.Player(a).Kills != 1 || math.Abs(w.Mass(a)-240) > .001 {
+		t.Fatal("consumption and elimination not recorded")
+	}
+	invariant(t, w)
+}
+func TestFoodTransfersMassOnce(t *testing.T) {
+	w := empty()
+	id := w.AddPlayer("A", false, "")
+	place(w, id, 800, 800, 36)
+	_ = w.Input(id, 800, 800, 0)
+	fixture(w, Food, 800, 800, 1)
+	w.Step()
+	if w.Mass(id) != 37 {
+		t.Fatal(w.Mass(id))
+	}
+	w.Step()
+	if w.Mass(id) != 37 {
+		t.Fatal("food duplicated")
+	}
+	invariant(t, w)
+}
+func TestSplitConservesMassAndHasCooldown(t *testing.T) {
+	w := empty()
+	id := w.AddPlayer("A", false, "")
+	place(w, id, 800, 800, 400)
+	_ = w.Input(id, 1400, 800, Split)
+	w.Step()
+	if len(w.Cells(id)) != 2 || w.Mass(id) != 400 {
+		t.Fatal("split mass")
+	}
+	_ = w.Input(id, 1400, 800, Split)
+	w.Step()
+	if len(w.Cells(id)) != 2 {
+		t.Fatal("cooldown ignored")
+	}
+	for range 300 {
+		_ = w.Input(id, 800, 800, Split)
+		w.Step()
+		if len(w.Cells(id)) > MaxCells {
+			t.Fatal("too many cells")
+		}
+		invariant(t, w)
+	}
+}
+func TestEjectHasCostAndCooldown(t *testing.T) {
+	w := empty()
+	id := w.AddPlayer("A", false, "")
+	place(w, id, 800, 800, 100)
+	_ = w.Input(id, 1400, 800, Eject)
+	w.Step()
+	if w.Mass(id) != 100-EjectCost {
+		t.Fatal(w.Mass(id))
+	}
+	n := 0
+	for _, e := range w.Entities {
+		if e.Kind == Ejected {
+			n++
+			if e.Mass != EjectMass {
+				t.Fatal(e.Mass)
+			}
+		}
+	}
+	if n != 1 {
+		t.Fatal(n)
+	}
+	_ = w.Input(id, 1400, 800, Eject)
+	w.Step()
+	if w.Mass(id) != 100-EjectCost {
+		t.Fatal("eject cooldown ignored")
+	}
+	invariant(t, w)
+}
+func TestOwnCellsMergeOnlyAfterDeadline(t *testing.T) {
+	w := empty()
+	id := w.AddPlayer("A", false, "")
+	place(w, id, 800, 800, 100)
+	_ = w.Input(id, 1400, 800, Split)
+	w.Step()
+	for i := range w.Entities {
+		e := &w.Entities[i]
+		if e.Owner == id {
+			e.X = 800
+			e.Y = 800
+			e.VX = 0
+			e.VY = 0
+			e.MergeAt = w.Tick + 2
+		}
+	}
+	_ = w.Input(id, 800, 800, 0)
+	w.Step()
+	if len(w.Cells(id)) != 2 {
+		t.Fatal("early merge")
+	}
+	w.Step()
+	if len(w.Cells(id)) != 1 {
+		t.Fatal("merge missing")
+	}
+	invariant(t, w)
+}
+func TestVirusExplodesLargeCellWithoutCreatingMass(t *testing.T) {
+	w := empty()
+	id := w.AddPlayer("A", false, "")
+	place(w, id, 800, 800, 200)
+	_ = w.Input(id, 800, 800, 0)
+	fixture(w, Virus, 800, 800, 100)
+	w.Step()
+	if len(w.Cells(id)) < 2 || len(w.Cells(id)) > MaxCells || math.Abs(w.Mass(id)-300) > .001 {
+		t.Fatal(len(w.Cells(id)), w.Mass(id))
+	}
+	invariant(t, w)
+}
+func TestFeedingVirusLaunchesAnother(t *testing.T) {
+	w := empty()
+	fixture(w, Virus, 800, 800, 100)
+	for range 7 {
+		fixture(w, Ejected, 800, 800, EjectMass)
+		w.Entities[len(w.Entities)-1].VX = 300
+	}
+	w.Step()
+	n := 0
+	for _, e := range w.Entities {
+		if e.Kind == Virus {
+			n++
+		}
+	}
+	if n != 2 {
+		t.Fatal("feeding did not create a launched virus", n)
+	}
+	invariant(t, w)
+}
+func TestTeamsNeverEatAllies(t *testing.T) {
+	w := New(9, Config{Size: 1600, Mode: Teams})
+	a := w.AddPlayer("A", false, "")
+	b := w.AddPlayer("B", false, "")
+	w.Player(b).Team = w.Player(a).Team
+	for i := range w.Entities {
+		if w.Entities[i].Owner == b {
+			w.Entities[i].Team = w.Player(a).Team
+		}
+	}
+	place(w, a, 800, 800, 200)
+	place(w, b, 800, 800, 36)
+	_ = w.Input(a, 800, 800, 0)
+	_ = w.Input(b, 800, 800, 0)
+	w.Step()
+	if !w.Player(b).Alive {
+		t.Fatal("ate teammate")
+	}
+	invariant(t, w)
+}
+func TestInvalidInputAndRespawn(t *testing.T) {
+	w := empty()
+	id := w.AddPlayer("A", false, "")
+	if w.Input(id, math.NaN(), 0, 0) == nil || w.Input(id, 0, 0, 128) == nil || w.Input(999, 0, 0, 0) == nil {
+		t.Fatal("invalid input accepted")
+	}
+	if w.Respawn(id) == nil {
+		t.Fatal("alive player spawned twice")
+	}
+	killer := w.AddPlayer("B", false, "")
+	place(w, killer, 800, 800, 300)
+	place(w, id, 800, 800, 36)
+	_ = w.Input(killer, 800, 800, 0)
+	_ = w.Input(id, 800, 800, 0)
+	w.Step()
+	if w.Respawn(id) == nil {
+		t.Fatal("respawn cooldown ignored")
+	}
+	for range 61 {
+		w.Step()
+	}
+	if err := w.Respawn(id); err != nil {
+		t.Fatal(err)
+	}
+	if !w.Player(id).Alive {
+		t.Fatal("respawn missing")
+	}
+	invariant(t, w)
+}
+func TestObservationCannotSeeOutsideInterestOrChangeRandomState(t *testing.T) {
+	w := empty()
+	a := w.AddPlayer("A", false, "")
+	b := w.AddPlayer("B", true, "cautious")
+	place(w, a, 70, 70, 36)
+	place(w, b, 1500, 1500, 36)
+	before, _ := json.Marshal(w)
+	obs := w.Observe(a)
+	for _, e := range obs.Entities {
+		if e.Owner == b {
+			t.Fatal("bot can see through the world")
+		}
+	}
+	after, _ := json.Marshal(w)
+	if string(before) != string(after) {
+		t.Fatal("observation changed simulation")
+	}
+}
+func TestSeededReplayAndCheckpoint(t *testing.T) {
+	a := New(42, Config{Size: 1600, Food: 150, Viruses: 5, Mode: Classic})
+	b := New(42, a.Config)
+	for _, w := range []*World{a, b} {
+		w.AddPlayer("A", false, "")
+		w.AddPlayer("B", true, "balanced")
+	}
+	for tick := range 1000 {
+		for _, w := range []*World{a, b} {
+			for _, p := range w.Players {
+				_ = w.Input(p.ID, float64((tick*17)%1500), float64((tick*13)%1500), uint8(tick%3))
+				if !p.Alive {
+					_ = w.Respawn(p.ID)
+				}
+			}
+			w.Step()
+			invariant(t, w)
+		}
+		if tick == 500 {
+			data, _ := json.Marshal(b)
+			b = &World{}
+			if err := json.Unmarshal(data, b); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	aj, _ := json.Marshal(a)
+	bj, _ := json.Marshal(b)
+	if string(aj) != string(bj) {
+		t.Fatal("same inputs/seed diverged across checkpoint")
+	}
+}
