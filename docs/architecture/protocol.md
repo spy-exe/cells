@@ -25,12 +25,17 @@ sequence per connection. Unknown versions/actions, text messages, nonfinite valu
 and malformed lengths close the connection. Snapshot maximum 2048 entities,
 10 ranks and 80 UTF-8 bytes per name. Clients also check lengths and finite values.
 
-Simulation: 30 fixed steps/s, snapshots every third step (10/s). One writer per
+Simulation: 30 fixed steps/s, snapshots every second step (15/s), with an extra
+snapshot on ticks that execute split or eject. One writer per
 connection; at most one pending snapshot and four control replies. A slow client
 loses obsolete snapshots rather than accumulating a queue. Visible state includes
 only a bounded circular view, own cells and public leaderboard. Enemy cooldowns,
 world RNG and entities outside the view are never transmitted. Rendering
-interpolates 100ms behind received state and has no authority over collisions.
+uses a monotonic buffered server-time clock, targets 65ms of interpolation delay
+and bounds extrapolation to 60ms. Camera and entities share the same clock. The
+client sends movement every 50ms and sends action input immediately. Holding W
+or the touch eject button repeats intentions; the server enforces all cooldowns.
+Rendering has no authority over collisions.
 
 Disconnect keeps the vulnerable body for 30 seconds. Reconnecting with the same
 cookie resumes its identity. A second connection replaces the first. Anonymous

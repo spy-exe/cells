@@ -64,7 +64,7 @@ in the public repository. Avoid dumps on the nearly full Proxmox root filesystem
 Prometheus at CT200 scrapes `10.10.1.220:9108` every 15s. Its config was backed up,
 validated with promtool and safely reloaded; existing jobs were preserved. App metrics
 report connections, bots, rooms/entities, tick p95/p99, queue drops, bytes, rejected
-frames, heap and goroutines (process CPU/RSS added in the next bot release).
+frames, heap, goroutines and process CPU/RSS (available from 0.2.1).
 The private firewall permits this port only from CT200. No DB/SSH/admin Internet port.
 Public origin listens on loopback8080, reached only by the Cells Cloudflare tunnel.
 Structured JSON logs omit tokens, cookies and credentials. Readiness requires PostgreSQL.
