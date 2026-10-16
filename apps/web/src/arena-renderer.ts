@@ -105,7 +105,9 @@ export class ArenaRenderer {
       if (this.destroyed) return;
       this.frame = requestAnimationFrame(tick);
       const dt = now - this.renderedAt;
-      if (dt < (this.quality === "low" ? 32 : 14)) return;
+      // High quality follows the display refresh rate. A fixed 14ms gate
+      // drops regular frames on 90/144Hz displays and creates uneven motion.
+      if (this.quality === "low" && dt < 32) return;
       this.measuredFPS = 1000 / Math.max(1, dt);
       this.renderedAt = now;
       this.render();
@@ -252,6 +254,7 @@ export class ArenaRenderer {
               ];
       v.sprite.alpha = 1;
       if (v.label) {
+        v.label.alpha = 1;
         const name = e.name.length > 14 ? `${e.name.slice(0, 13)}…` : e.name;
         const text = `${name}${e.bot ? " · IA" : ""}`;
         if (v.label.text !== text) v.label.text = text;
