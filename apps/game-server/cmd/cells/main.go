@@ -3,16 +3,19 @@ package main
 import (
 	"context"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/spy-exe/cells/apps/game-server/internal/game"
 	"github.com/spy-exe/cells/apps/game-server/internal/server"
+	"github.com/spy-exe/cells/apps/game-server/internal/store"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 )
 
-var version = "0.0.1"
+var version = "0.1.0"
 var revision = "dev"
 
 func env(key, fallback string) string {
@@ -38,12 +41,30 @@ func main() {
 		slog.Error("database unavailable")
 		os.Exit(1)
 	}
-	_, err = pool.Exec(ctx, "CREATE TABLE IF NOT EXISTS cells_schema (version integer PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now()); INSERT INTO cells_schema(version) VALUES(1) ON CONFLICT DO NOTHING")
+	st := store.New(pool)
+	err = st.Migrate(ctx)
 	if err != nil {
 		slog.Error("schema initialization failed")
 		os.Exit(1)
 	}
-	app := server.New(server.Config{Version: version, Revision: revision, WebDir: env("CELLS_WEB_DIR", "dist/web"), Origin: env("CELLS_ORIGIN", "http://127.0.0.1:8080"), Ready: pool.Ping})
+	var hub *game.Hub
+	if os.Getenv("CELLS_CANDIDATE") != "1" {
+		size, _ := strconv.ParseFloat(os.Getenv("CELLS_MAP_SIZE"), 64)
+		hub = game.New(st, size)
+		if err = hub.Load(ctx); err != nil {
+			slog.Error("checkpoint rejected")
+			os.Exit(1)
+		}
+		go hub.Run(ctx)
+		metrics := &http.Server{Addr: env("CELLS_METRICS_ADDR", "127.0.0.1:9108"), Handler: http.HandlerFunc(hub.Metrics), ReadHeaderTimeout: 3 * time.Second, WriteTimeout: 3 * time.Second}
+		go func() {
+			if e := metrics.ListenAndServe(); e != nil && e != http.ErrServerClosed {
+				slog.Error("metrics listener failed")
+			}
+		}()
+		defer metrics.Close()
+	}
+	app := server.New(server.Config{Version: version, Revision: revision, WebDir: env("CELLS_WEB_DIR", "dist/web"), Origin: env("CELLS_ORIGIN", "http://127.0.0.1:8080"), Ready: pool.Ping, Store: st, Hub: hub})
 	httpServer := &http.Server{Addr: env("CELLS_ADDR", "127.0.0.1:8080"), Handler: app.Handler(), ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 8192}
 	go func() {
 		slog.Info("cells started", "version", version, "revision", revision)
@@ -55,5 +76,8 @@ func main() {
 	<-ctx.Done()
 	shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+	if hub != nil {
+		hub.Close(shutdown)
+	}
 	_ = httpServer.Shutdown(shutdown)
 }

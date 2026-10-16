@@ -133,7 +133,7 @@ def deploy():
     backup(sha)
     unit = f'cells-candidate-{sha[:7]}-{os.getpid()}'
     try:
-        run('systemd-run', '--collect', '--unit=' + unit, '--property=User=cells', '--property=CPUQuota=50%', '--property=MemoryMax=512M', '--setenv=CELLS_ADDR=127.0.0.1:8081', '--setenv=CELLS_WEB_DIR=' + str(destination / 'web'), str(destination / 'cells'))
+        run('systemd-run', '--collect', '--unit=' + unit, '--property=User=cells', '--property=CPUQuota=50%', '--property=MemoryMax=512M', '--setenv=CELLS_CANDIDATE=1', '--setenv=CELLS_ADDR=127.0.0.1:8081', '--setenv=CELLS_WEB_DIR=' + str(destination / 'web'), str(destination / 'cells'))
         for _ in range(20):
             if healthy('http://127.0.0.1:8081/readyz', sha):
                 break

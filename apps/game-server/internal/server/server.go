@@ -3,6 +3,8 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"github.com/spy-exe/cells/apps/game-server/internal/game"
+	"github.com/spy-exe/cells/apps/game-server/internal/store"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -13,8 +15,13 @@ import (
 type Config struct {
 	Version, Revision, WebDir, Origin string
 	Ready                             func(context.Context) error
+	Store                             *store.Store
+	Hub                               *game.Hub
 }
-type Server struct{ config Config }
+type Server struct {
+	config Config
+	limits limiter
+}
 
 func New(config Config) *Server { return &Server{config: config} }
 func (s *Server) ready() bool {
@@ -44,8 +51,19 @@ func (s *Server) Handler() http.Handler {
 		writeJSON(w, code, map[string]any{"ok": ready, "version": s.config.Version, "revision": s.config.Revision})
 	})
 	mux.HandleFunc("GET /api/status", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, 200, map[string]any{"ok": true, "ready": s.ready(), "version": s.config.Version, "revision": s.config.Revision, "modes": []string{}, "players": 0, "bots": 0})
+		modes := []string{}
+		players, bots := any(0), any(0)
+		if s.config.Hub != nil {
+			modes = []string{"classic"}
+			stats := s.config.Hub.Stats()
+			players = stats["players"]
+			bots = stats["bots"]
+		}
+		writeJSON(w, 200, map[string]any{"ok": true, "ready": s.ready(), "version": s.config.Version, "revision": s.config.Revision, "modes": modes, "players": players, "bots": bots})
 	})
+	if s.config.Store != nil && s.config.Hub != nil {
+		s.routes(mux)
+	}
 	if s.config.WebDir != "" {
 		files := http.FileServer(http.Dir(s.config.WebDir))
 		mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {

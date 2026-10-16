@@ -3,7 +3,7 @@
 set -uo pipefail
 log=$(mktemp)
 trap 'rm -f "$log"' EXIT
-timeout 10 "${CELLS_TEST_BINARY:-release/cells}" > "$log" 2>&1
+CELLS_CANDIDATE=1 timeout 10 "${CELLS_TEST_BINARY:-release/cells}" > "$log" 2>&1
 status=$?
 if [[ "$status" -ne 1 ]] || ! grep -q 'server stopped unexpectedly' "$log"; then
   echo 'Expected a nonzero bind failure from the second server.' >&2
