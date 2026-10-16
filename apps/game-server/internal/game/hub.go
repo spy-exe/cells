@@ -13,6 +13,7 @@ import (
 	"github.com/spy-exe/cells/apps/game-server/internal/protocol"
 	"github.com/spy-exe/cells/apps/game-server/internal/store"
 	"log/slog"
+	"maps"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -37,7 +38,8 @@ type Room struct {
 type Hub struct {
 	mu                              sync.Mutex
 	rooms                           map[string]*Room
-	store                           *store.Store
+	store                           CheckpointStore
+	saveEvery                       time.Duration
 	size                            float64
 	Ticks, Bytes, Dropped, Rejected atomic.Uint64
 	durations                       [1800]float64
@@ -46,10 +48,17 @@ type Hub struct {
 	stop                            chan struct{}
 	done                            chan struct{}
 	saveMu                          sync.Mutex
+	saveJobs                        sync.WaitGroup
+	saving                          atomic.Bool
 }
 
-func New(st *store.Store, size float64) *Hub {
-	return &Hub{store: st, size: size, rooms: map[string]*Room{}, stop: make(chan struct{}), done: make(chan struct{})}
+type CheckpointStore interface {
+	LoadRooms(context.Context) ([]store.SavedRoom, error)
+	SaveRooms(context.Context, []store.SavedRoom) error
+}
+
+func New(st CheckpointStore, size float64) *Hub {
+	return &Hub{store: st, size: size, rooms: map[string]*Room{}, stop: make(chan struct{}), done: make(chan struct{}), saveEvery: 30 * time.Second}
 }
 func (h *Hub) Load(ctx context.Context) error {
 	saved, err := h.store.LoadRooms(ctx)
@@ -60,6 +69,9 @@ func (h *Hub) Load(ctx context.Context) error {
 		var r Room
 		if err = json.Unmarshal(v.Data, &r); err != nil || r.World == nil || r.World.Valid() != nil || len(r.World.Players) > 128 || r.Identities == nil {
 			return fmt.Errorf("invalid room checkpoint %s", v.Key)
+		}
+		if r.World.Config.Size == 6000 && r.World.Config.Food == 2000 {
+			r.World.Config.Food = 3600
 		}
 		r.Peers = map[uint32]*Peer{}
 		if r.Memories == nil {
@@ -260,7 +272,7 @@ func (h *Hub) Run(ctx context.Context) {
 	defer close(h.done)
 	ticker := time.NewTicker(time.Second / engine.TickRate)
 	defer ticker.Stop()
-	save := time.NewTicker(30 * time.Second)
+	save := time.NewTicker(h.saveEvery)
 	defer save.Stop()
 	for {
 		select {
@@ -269,8 +281,15 @@ func (h *Hub) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-save.C:
-			if err := h.Save(ctx); err != nil {
-				slog.Error("checkpoint failed", "error", err.Error())
+			if h.saving.CompareAndSwap(false, true) {
+				h.saveJobs.Add(1)
+				go func() {
+					defer h.saveJobs.Done()
+					defer h.saving.Store(false)
+					if err := h.Save(ctx); err != nil {
+						slog.Error("checkpoint failed", "error", err.Error())
+					}
+				}()
 			}
 		case <-ticker.C:
 			start := time.Now()
@@ -309,7 +328,7 @@ func (h *Hub) Run(ctx context.Context) {
 					}
 				}
 				r.World.Step()
-				if r.World.Tick%3 == 0 {
+				if r.World.Tick%2 == 0 || r.World.ActionOccurred() {
 					for id, p := range r.Peers {
 						b := protocol.Snapshot(r.World.Observe(id))
 						select {
@@ -342,16 +361,28 @@ func (h *Hub) Save(ctx context.Context) error {
 	h.saveMu.Lock()
 	defer h.saveMu.Unlock()
 	h.mu.Lock()
+	keys := h.keys()
+	snapshots := make(map[string]Room, len(keys))
+	for _, key := range keys {
+		r := h.rooms[key]
+		world := *r.World
+		world.Entities = append([]engine.Entity{}, r.World.Entities...)
+		world.Players = append([]engine.Player{}, r.World.Players...)
+		memories := make(map[uint32]*bot.Memory, len(r.Memories))
+		for id, m := range r.Memories {
+			memories[id] = &bot.Memory{Seen: maps.Clone(m.Seen)}
+		}
+		snapshots[key] = Room{World: &world, Identities: maps.Clone(r.Identities), Absent: maps.Clone(r.Absent), Memories: memories}
+	}
+	h.mu.Unlock()
 	var saved []store.SavedRoom
-	for _, key := range h.keys() {
-		data, err := json.Marshal(h.rooms[key])
+	for _, key := range keys {
+		data, err := json.Marshal(snapshots[key])
 		if err != nil {
-			h.mu.Unlock()
 			return err
 		}
 		saved = append(saved, store.SavedRoom{Key: key, Data: data})
 	}
-	h.mu.Unlock()
 	return h.store.SaveRooms(ctx, saved)
 }
 func (h *Hub) Close(ctx context.Context) {
@@ -373,6 +404,7 @@ func (h *Hub) Close(ctx context.Context) {
 	case <-ctx.Done():
 		return
 	}
+	h.saveJobs.Wait()
 	if err := h.Save(ctx); err != nil {
 		slog.Error("final checkpoint failed")
 	}

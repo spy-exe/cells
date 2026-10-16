@@ -109,7 +109,7 @@ func Decide(o engine.Observation, m *Memory, profile string) Intent {
 			threats = append(threats, e)
 			reach := engine.Radius(e.Mass) + engine.Radius(smallest) + 190*caution
 			if e.Mass > big.Mass*2.4 {
-				reach += 180
+				reach += 420
 			}
 			if dist(big, e) < reach {
 				danger = true

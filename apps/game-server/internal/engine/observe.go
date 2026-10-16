@@ -32,11 +32,57 @@ type Observation struct {
 	TeamMass                    [3]float64
 }
 
+type center struct{ Mass, X, Y float64 }
+type viewCache struct {
+	tick    uint64
+	grid    grid
+	players map[uint32]*Player
+	centers map[uint32]center
+	cells   []int
+	ranks   []Rank
+	teams   [3]float64
+}
+
+func (w *World) visibilityCache() *viewCache {
+	if w.view != nil && w.view.tick == w.Tick {
+		return w.view
+	}
+	c := &viewCache{tick: w.Tick, grid: buildGrid(w.Entities), players: make(map[uint32]*Player, len(w.Players)), centers: make(map[uint32]center, len(w.Players))}
+	for i, e := range w.Entities {
+		if e.Kind == Cell && e.Mass > 0 {
+			v := c.centers[e.Owner]
+			v.Mass += e.Mass
+			v.X += e.X * e.Mass
+			v.Y += e.Y * e.Mass
+			c.centers[e.Owner] = v
+			c.cells = append(c.cells, i)
+		}
+	}
+	for i := range w.Players {
+		p := &w.Players[i]
+		c.players[p.ID] = p
+		if p.Alive {
+			v := c.centers[p.ID]
+			c.ranks = append(c.ranks, Rank{ID: p.ID, Name: p.Name, Mass: v.Mass, Bot: p.Bot, Team: p.Team})
+			c.teams[p.Team%3] += v.Mass
+		}
+	}
+	sort.Slice(c.ranks, func(i, j int) bool {
+		a, b := c.ranks[i], c.ranks[j]
+		if a.Mass == b.Mass {
+			return a.ID < b.ID
+		}
+		return a.Mass > b.Mass
+	})
+	w.view = c
+	return c
+}
 func (w *World) Observe(id uint32) Observation {
-	o := Observation{Tick: w.Tick, Self: id, Mode: w.Config.Mode, Size: w.Config.Size, X: w.Config.Size / 2, Y: w.Config.Size / 2, View: 800}
-	if p := w.Player(id); p != nil {
+	c := w.visibilityCache()
+	o := Observation{Tick: w.Tick, Self: id, Mode: w.Config.Mode, Size: w.Config.Size, X: w.Config.Size / 2, Y: w.Config.Size / 2, View: 800, TeamMass: c.teams}
+	if p := c.players[id]; p != nil {
 		o.Alive = p.Alive
-		o.Mass = w.Mass(id)
+		o.Mass = c.centers[id].Mass
 		if p.SplitAt > w.Tick {
 			o.SplitIn = uint16(p.SplitAt - w.Tick)
 		}
@@ -46,62 +92,43 @@ func (w *World) Observe(id uint32) Observation {
 		if !p.Alive && p.DiedAt+60 > w.Tick {
 			o.RespawnIn = uint16(p.DiedAt + 60 - w.Tick)
 		}
-		if o.Mass > 0 {
-			o.X = 0
-			o.Y = 0
-			for _, e := range w.Cells(id) {
-				o.X += e.X * e.Mass / o.Mass
-				o.Y += e.Y * e.Mass / o.Mass
-			}
-			o.View = min(2200, 800+math.Sqrt(o.Mass)*10)
-		}
 	}
-	for _, p := range w.Players {
-		if p.Alive {
-			mass := w.Mass(p.ID)
-			o.Leaderboard = append(o.Leaderboard, Rank{ID: p.ID, Name: p.Name, Mass: mass, Bot: p.Bot, Team: p.Team})
-			o.TeamMass[p.Team%3] += mass
-		}
+	follow := id
+	if !o.Alive && len(c.ranks) > 0 {
+		follow = c.ranks[0].ID
 	}
-	sort.Slice(o.Leaderboard, func(i, j int) bool {
-		a, b := o.Leaderboard[i], o.Leaderboard[j]
-		if a.Mass == b.Mass {
-			return a.ID < b.ID
-		}
-		return a.Mass > b.Mass
-	})
-	// Spectators follow the leader with the same visibility constraints.
-	if !o.Alive && len(o.Leaderboard) > 0 {
-		leader := o.Leaderboard[0].ID
-		mass := w.Mass(leader)
-		o.X = 0
-		o.Y = 0
-		for _, e := range w.Cells(leader) {
-			o.X += e.X * e.Mass / mass
-			o.Y += e.Y * e.Mass / mass
-		}
-		o.View = min(2200, 800+math.Sqrt(mass)*10)
+	if v := c.centers[follow]; v.Mass > 0 {
+		o.X = v.X / v.Mass
+		o.Y = v.Y / v.Mass
+		o.View = min(2200, 800+math.Sqrt(v.Mass)*10)
 	}
-	if len(o.Leaderboard) > 10 {
-		o.Leaderboard = o.Leaderboard[:10]
+	o.Leaderboard = append([]Rank{}, c.ranks[:min(10, len(c.ranks))]...)
+	appendVisible := func(e Entity) {
+		if len(o.Entities) >= 2048 || e.Mass <= 0 {
+			return
+		}
+		if !(e.Kind == Cell && e.Owner == id) && math.Hypot(e.X-o.X, e.Y-o.Y) > o.View+Radius(e.Mass) {
+			return
+		}
+		v := Visible{ID: e.ID, Owner: e.Owner, Kind: e.Kind, X: e.X, Y: e.Y, Mass: e.Mass, Team: e.Team}
+		if p := c.players[e.Owner]; e.Kind == Cell && p != nil {
+			v.Name = p.Name
+			v.Bot = p.Bot
+		}
+		o.Entities = append(o.Entities, v)
 	}
-	// Important entities precede particles when the view reaches its hard cap.
-	for _, kind := range []Kind{Cell, Virus, Ejected, Food} {
-		for _, e := range w.Entities {
-			if e.Kind != kind || len(o.Entities) >= 2048 || e.Mass <= 0 {
-				continue
+	// Large cells can overlap the view even with a distant center. Non-cell
+	// entities are small and use local buckets; both paths retain visibility rules.
+	for _, index := range c.cells {
+		appendVisible(w.Entities[index])
+	}
+	nearby := c.grid.near(o.X, o.Y, o.View+64)
+	for _, kind := range []Kind{Virus, Ejected, Food} {
+		for _, index := range nearby {
+			e := w.Entities[index]
+			if e.Kind == kind {
+				appendVisible(e)
 			}
-			if !(e.Kind == Cell && e.Owner == id) && math.Hypot(e.X-o.X, e.Y-o.Y) > o.View+Radius(e.Mass) {
-				continue
-			}
-			v := Visible{ID: e.ID, Owner: e.Owner, Kind: e.Kind, X: e.X, Y: e.Y, Mass: e.Mass, Team: e.Team}
-			if e.Kind == Cell {
-				if p := w.Player(e.Owner); p != nil {
-					v.Name = p.Name
-					v.Bot = p.Bot
-				}
-			}
-			o.Entities = append(o.Entities, v)
 		}
 	}
 	return o

@@ -67,7 +67,7 @@ func TestVirusFeedingOpportunity(t *testing.T) {
 	o := scene()
 	o.Mass = 200
 	o.Entities[0].Mass = 200
-	o.Entities = append(o.Entities, engine.Visible{ID: 3, Kind: engine.Virus, X: 3250, Y: 3000, Mass: 100}, engine.Visible{ID: 4, Owner: 9, Kind: engine.Cell, X: 3650, Y: 3000, Mass: 600})
+	o.Entities = append(o.Entities, engine.Visible{ID: 3, Kind: engine.Virus, X: 3250, Y: 3000, Mass: 100}, engine.Visible{ID: 4, Owner: 9, Kind: engine.Cell, X: 3650, Y: 3000, Mass: 300})
 	d := Decide(o, &Memory{}, "balanced")
 	if d.Reason != "feed-virus" || d.Actions != engine.Eject {
 		t.Fatal(d)

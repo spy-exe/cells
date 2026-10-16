@@ -18,18 +18,20 @@ const (
 )
 
 const (
-	Classic          = "classic"
-	Teams            = "teams"
-	Arena            = "arena"
-	TickRate         = 30
-	MaxCells         = 16
-	MaxEjected       = 512
-	MaxViruses       = 128
-	SpawnMass        = 36.0
-	EjectCost        = 14.0
-	EjectMass        = 12.0
-	Split      uint8 = 1
-	Eject      uint8 = 2
+	Classic                  = "classic"
+	Teams                    = "teams"
+	Arena                    = "arena"
+	TickRate                 = 30
+	MaxCells                 = 16
+	MaxEjected               = 512
+	MaxViruses               = 128
+	SplitCooldownTicks       = 6
+	EjectCooldownTicks       = 3
+	SpawnMass                = 36.0
+	EjectCost                = 14.0
+	EjectMass                = 12.0
+	Split              uint8 = 1
+	Eject              uint8 = 2
 )
 
 type Config struct {
@@ -39,7 +41,7 @@ type Config struct {
 }
 
 func DefaultConfig(mode string) Config {
-	return Config{Size: 6000, Food: 2000, Viruses: 24, Mode: mode}
+	return Config{Size: 6000, Food: 3600, Viruses: 24, Mode: mode}
 }
 
 type Entity struct {
@@ -66,6 +68,7 @@ type Player struct {
 // Every source/sink is recorded, including replenishment and decay. A checkpoint
 // contains the PRNG state, so replay does not depend on wall time or Go's RNG.
 type World struct {
+	view           *viewCache
 	Config         Config
 	Entities       []Entity
 	Players        []Player
@@ -103,6 +106,7 @@ func (w *World) random() float64 {
 }
 func (w *World) next() uint32 { w.NextID++; return w.NextID }
 func (w *World) add(e Entity) {
+	w.view = nil
 	e.ID = w.next()
 	e.Born = w.Tick
 	w.Entities = append(w.Entities, e)
@@ -193,6 +197,7 @@ func (w *World) Respawn(id uint32) error {
 }
 
 func (w *World) Spectate(id uint32) {
+	w.view = nil
 	for i := range w.Entities {
 		if w.Entities[i].Kind == Cell && w.Entities[i].Owner == id {
 			w.Sinks += w.Entities[i].Mass
@@ -206,6 +211,7 @@ func (w *World) Spectate(id uint32) {
 	}
 }
 func (w *World) RemovePlayer(id uint32) {
+	w.view = nil
 	for i := range w.Entities {
 		if w.Entities[i].Kind == Cell && w.Entities[i].Owner == id {
 			w.Sinks += w.Entities[i].Mass
@@ -249,9 +255,15 @@ func (w *World) clamp(e *Entity) {
 	e.Y = max(r, min(w.Config.Size-r, e.Y))
 }
 func (w *World) actions(p *Player) {
+	if !p.Alive {
+		p.Actions = 0
+		return
+	}
+	pending := p.Actions
 	n := len(w.Cells(p.ID))
 	original := len(w.Entities)
 	if p.Actions&Split != 0 && w.Tick >= p.SplitAt {
+		pending &^= Split
 		did := false
 		for i := 0; i < original && n < MaxCells; i++ {
 			e := &w.Entities[i]
@@ -264,20 +276,23 @@ func (w *World) actions(p *Player) {
 			child := *e
 			child.ID = w.next()
 			child.Born = w.Tick
-			child.X += dx * Radius(e.Mass)
-			child.Y += dy * Radius(e.Mass)
-			child.VX = dx * 650
-			child.VY = dy * 650
+			child.X += dx * (Radius(e.Mass)*2 + 8)
+			child.Y += dy * (Radius(e.Mass)*2 + 8)
+			child.VX = dx * 1050
+			e.VX -= dx * 70
+			child.VY = dy * 1050
+			e.VY -= dy * 70
 			w.clamp(&child)
 			w.Entities = append(w.Entities, child)
 			n++
 			did = true
 		}
 		if did {
-			p.SplitAt = w.Tick + 24
+			p.SplitAt = w.Tick + SplitCooldownTicks
 		}
 	}
 	if p.Actions&Eject != 0 && w.Tick >= p.EjectAt {
+		pending &^= Eject
 		did := false
 		pellets := 0
 		for _, e := range w.Entities {
@@ -297,21 +312,22 @@ func (w *World) actions(p *Player) {
 			w.Sinks += EjectCost - EjectMass
 			dx, dy := direction(p.TargetX-e.X, p.TargetY-e.Y)
 			distance := Radius(e.Mass) + Radius(EjectMass) + 3
-			pellet := Entity{ID: w.next(), Owner: p.ID, Kind: Ejected, Mass: EjectMass, X: e.X + dx*distance, Y: e.Y + dy*distance, VX: dx * 400, VY: dy * 400, Born: w.Tick}
+			pellet := Entity{ID: w.next(), Owner: p.ID, Kind: Ejected, Mass: EjectMass, X: e.X + dx*distance, Y: e.Y + dy*distance, VX: dx * 650, VY: dy * 650, Born: w.Tick}
 			w.clamp(&pellet)
 			w.Entities = append(w.Entities, pellet)
 			pellets++
 			did = true
 		}
 		if did {
-			p.EjectAt = w.Tick + 6
+			p.EjectAt = w.Tick + EjectCooldownTicks
 		}
 	}
-	p.Actions = 0
+	p.Actions = pending
 }
 
 // Step advances exactly 1/30 second. Callers serialize access to a World.
 func (w *World) Step() {
+	w.view = nil
 	w.Tick++
 	for i := range w.Players {
 		w.actions(&w.Players[i])
@@ -338,8 +354,14 @@ func (w *World) Step() {
 		}
 		e.X += e.VX / TickRate
 		e.Y += e.VY / TickRate
-		e.VX *= .88
-		e.VY *= .88
+		drag := .88
+		if e.Kind == Cell {
+			drag = .92
+		} else if e.Kind == Ejected {
+			drag = .9
+		}
+		e.VX *= drag
+		e.VY *= drag
 		if e.Kind == Ejected && w.Tick > e.Born+900 {
 			w.Sinks += e.Mass
 			e.Mass = 0
@@ -350,9 +372,15 @@ func (w *World) Step() {
 	w.consume()
 	w.compact()
 	w.replenish()
+	masses := make(map[uint32]float64, len(w.Players))
+	for _, e := range w.Entities {
+		if e.Kind == Cell {
+			masses[e.Owner] += e.Mass
+		}
+	}
 	for i := range w.Players {
 		p := &w.Players[i]
-		mass := w.Mass(p.ID)
+		mass := masses[p.ID]
 		p.Peak = max(p.Peak, mass)
 		if p.Alive && mass == 0 {
 			p.Alive = false
@@ -559,7 +587,14 @@ func (w *World) replenish() {
 		}
 	}
 	for i := foods; i < w.Config.Food; i++ {
-		w.add(Entity{Kind: Food, X: 8 + w.random()*(w.Config.Size-16), Y: 8 + w.random()*(w.Config.Size-16), Mass: 1})
+		mass := 1.
+		roll := w.random()
+		if roll > .95 {
+			mass = 3
+		} else if roll > .7 {
+			mass = 2
+		}
+		w.add(Entity{Kind: Food, X: 8 + w.random()*(w.Config.Size-16), Y: 8 + w.random()*(w.Config.Size-16), Mass: mass})
 	}
 	for i := viruses; i < w.Config.Viruses; i++ {
 		w.add(Entity{Kind: Virus, X: 45 + w.random()*(w.Config.Size-90), Y: 45 + w.random()*(w.Config.Size-90), Mass: 100})
@@ -592,4 +627,13 @@ func (w *World) Valid() error {
 		return errors.New("mass ledger mismatch")
 	}
 	return nil
+}
+
+func (w *World) ActionOccurred() bool {
+	for _, p := range w.Players {
+		if p.SplitAt == w.Tick+SplitCooldownTicks || p.EjectAt == w.Tick+EjectCooldownTicks {
+			return true
+		}
+	}
+	return false
 }

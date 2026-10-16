@@ -336,3 +336,69 @@ func TestEntityBudgetsBoundEjectionAndVirusGrowth(t *testing.T) {
 	}
 	invariant(t, w)
 }
+
+func TestSplitHasUsefulReachAndResponsiveChaining(t *testing.T) {
+	w := New(4, Config{Size: 6000, Mode: Classic})
+	id := w.AddPlayer("A", false, "")
+	place(w, id, 2500, 3000, 800)
+	_ = w.Input(id, 5500, 3000, Split)
+	w.Step()
+	cells := w.Cells(id)
+	if math.Abs(cells[1].X-cells[0].X) < Radius(cells[0].Mass)+Radius(cells[1].Mass) {
+		t.Fatal("split children overlap at launch")
+	}
+	for range 14 {
+		w.Step()
+	}
+	cells = w.Cells(id)
+	if math.Abs(cells[1].X-cells[0].X) < 300 {
+		t.Fatal("split has insufficient tactical reach")
+	}
+	_ = w.Input(id, 5500, 3000, Split)
+	w.Step()
+	if len(w.Cells(id)) != 4 {
+		t.Fatal("split chain blocked too long")
+	}
+	invariant(t, w)
+}
+func TestFoodHasVisibleMassVariety(t *testing.T) {
+	w := New(8, DefaultConfig(Classic))
+	counts := map[float64]int{}
+	for _, e := range w.Entities {
+		if e.Kind == Food {
+			counts[e.Mass]++
+		}
+	}
+	if len(counts) < 3 || w.Config.Food < 3500 {
+		t.Fatal("arena lacks food variety/density", counts, w.Config.Food)
+	}
+	invariant(t, w)
+}
+func TestActionsBufferOnlyUntilTheirShortCooldown(t *testing.T) {
+	w := empty()
+	id := w.AddPlayer("A", false, "")
+	place(w, id, 800, 800, 800)
+	_ = w.Input(id, 1400, 800, Split)
+	w.Step()
+	if !w.ActionOccurred() {
+		t.Fatal("split feedback missing")
+	}
+	_ = w.Input(id, 1400, 800, Split)
+	w.Step()
+	if w.ActionOccurred() {
+		t.Fatal("cooldown should still apply")
+	}
+	for range SplitCooldownTicks {
+		w.Step()
+	}
+	if len(w.Cells(id)) != 4 {
+		t.Fatal("buffered split was lost")
+	}
+	for range 5 {
+		w.Step()
+	}
+	if len(w.Cells(id)) != 4 {
+		t.Fatal("buffered action executed repeatedly")
+	}
+	invariant(t, w)
+}
