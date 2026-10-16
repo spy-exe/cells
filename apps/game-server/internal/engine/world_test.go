@@ -303,3 +303,36 @@ func TestSeededReplayAndCheckpoint(t *testing.T) {
 		t.Fatal("same inputs/seed diverged across checkpoint")
 	}
 }
+
+func TestEntityBudgetsBoundEjectionAndVirusGrowth(t *testing.T) {
+	w := empty()
+	id := w.AddPlayer("A", false, "")
+	place(w, id, 800, 800, 100)
+	for range MaxEjected {
+		fixture(w, Ejected, 100, 100, EjectMass)
+	}
+	_ = w.Input(id, 1400, 800, Eject)
+	w.Step()
+	if w.Mass(id) != 100 {
+		t.Fatal("charged mass despite exhausted pellet budget")
+	}
+	invariant(t, w)
+	w = empty()
+	for range MaxViruses {
+		fixture(w, Virus, 100, 100, 100)
+	}
+	for range 7 {
+		fixture(w, Ejected, 100, 100, EjectMass)
+	}
+	w.Step()
+	count := 0
+	for _, e := range w.Entities {
+		if e.Kind == Virus {
+			count++
+		}
+	}
+	if count > MaxViruses {
+		t.Fatal("virus budget exceeded", count)
+	}
+	invariant(t, w)
+}

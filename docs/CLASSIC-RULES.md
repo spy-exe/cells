@@ -13,3 +13,8 @@
 Numbers are game rules, not claims of matching another implementation. Seeds,
 input streams and versioned checkpoints support reproducible tests. Later modes
 reuse physics and change rule policies, such as friendly consumption in Teams.
+
+Server safety budgets added with tactical bots: at most 512 ejected pellets and
+128 viruses per room. Ejection at the pellet cap does not charge mass. Feeding at
+the virus cap consumes the growth remainder as an explicit mass sink instead of
+spawning an unbounded entity. Neither limit grants a client an alternate physics path.

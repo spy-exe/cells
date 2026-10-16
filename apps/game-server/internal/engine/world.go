@@ -18,16 +18,18 @@ const (
 )
 
 const (
-	Classic         = "classic"
-	Teams           = "teams"
-	Arena           = "arena"
-	TickRate        = 30
-	MaxCells        = 16
-	SpawnMass       = 36.0
-	EjectCost       = 14.0
-	EjectMass       = 12.0
-	Split     uint8 = 1
-	Eject     uint8 = 2
+	Classic          = "classic"
+	Teams            = "teams"
+	Arena            = "arena"
+	TickRate         = 30
+	MaxCells         = 16
+	MaxEjected       = 512
+	MaxViruses       = 128
+	SpawnMass        = 36.0
+	EjectCost        = 14.0
+	EjectMass        = 12.0
+	Split      uint8 = 1
+	Eject      uint8 = 2
 )
 
 type Config struct {
@@ -277,7 +279,16 @@ func (w *World) actions(p *Player) {
 	}
 	if p.Actions&Eject != 0 && w.Tick >= p.EjectAt {
 		did := false
+		pellets := 0
+		for _, e := range w.Entities {
+			if e.Kind == Ejected && e.Mass > 0 {
+				pellets++
+			}
+		}
 		for i := 0; i < original; i++ {
+			if pellets >= MaxEjected {
+				break
+			}
 			e := &w.Entities[i]
 			if e.Kind != Cell || e.Owner != p.ID || e.Mass < 32 {
 				continue
@@ -289,6 +300,7 @@ func (w *World) actions(p *Player) {
 			pellet := Entity{ID: w.next(), Owner: p.ID, Kind: Ejected, Mass: EjectMass, X: e.X + dx*distance, Y: e.Y + dy*distance, VX: dx * 400, VY: dy * 400, Born: w.Tick}
 			w.clamp(&pellet)
 			w.Entities = append(w.Entities, pellet)
+			pellets++
 			did = true
 		}
 		if did {
@@ -434,6 +446,16 @@ func (w *World) consume() {
 				remainder := v.Mass - 100
 				v.Mass = 100
 				v.Feeds = 0
+				viruses := 0
+				for _, entity := range w.Entities {
+					if entity.Kind == Virus && entity.Mass > 0 {
+						viruses++
+					}
+				}
+				if viruses >= MaxViruses {
+					w.Sinks += remainder
+					continue
+				}
 				child := Entity{ID: w.next(), Kind: Virus, X: v.X + dx*35, Y: v.Y + dy*35, Mass: remainder, VX: dx * 350, VY: dy * 350, Born: w.Tick}
 				w.clamp(&child)
 				w.Entities = append(w.Entities, child)
