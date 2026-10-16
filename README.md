@@ -12,6 +12,8 @@ AI Arena adds eight visible-information tactical bots with five selectable profi
 Public Classic mixes bot profiles; private Classic rooms are human-only.
 Real learning experiments and further modes use separate release gates;
 see [scope](SPEC.md) and [continuity](CONTINUITY.md) for actual status.
+The [0.2.1 release report](docs/releases/0.2.1.md) records the visual/input fixes,
+public browser tests, actual screenshots and measured load results.
 
 ## Development
 
@@ -65,8 +67,9 @@ Native Debian services run in a dedicated unprivileged LXC. Successful `main` CI
 builds produce checksummed artifacts; a reviewed root-owned deployer verifies and
 activates them. Public repository code never runs on a privileged homelab CI runner.
 The application, database and tunnel use separate service identities. Game checkpoints
-are stored every 30 seconds and at orderly shutdown; abrupt failure can lose at most
-the last checkpoint interval of transient arena state. Backups and rollback are
+are stored every 30 seconds and at orderly shutdown; abrupt failure loses transient
+arena state since the last successful checkpoint, normally within that interval.
+Backups and rollback are
 project-scoped and never restore old data over newer saves automatically.
 
 ## License and originality

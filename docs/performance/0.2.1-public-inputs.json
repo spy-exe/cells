@@ -1,0 +1,19 @@
+{
+  "revision": "5a01e3318d47b3a5a2e88913add95a93a2c2a9b7",
+  "note": "Two public smoke samples; not a latency percentile or input-to-photon measurement.",
+  "results": [
+    {
+      "key": "w",
+      "input_to_authoritative_snapshot_ms": 75,
+      "start_mass": 36,
+      "result_mass": 22
+    },
+    {
+      "key": "Space",
+      "input_to_authoritative_snapshot_ms": 81,
+      "start_mass": 36,
+      "result_mass": 36,
+      "split_distance_over_combined_radii": 2.0787086434075728
+    }
+  ]
+}

@@ -1,5 +1,55 @@
 # Cells — active handoff
 
+## Latest verified state — 2026-10-16 16:43 America/Sao_Paulo
+
+**Cells 0.2.1 is live**, initial deployment from main revision
+**5a01e3318d47b3a5a2e88913add95a93a2c2a9b7**. Check public `/readyz` for the
+current artifact: later documentation-only commits may advance its revision.
+Main CI **38956116138 succeeded**, feature CI **38922728307 succeeded**.
+Public HTTPS/WSS browser run `/tmp/cells-public-0.2.1.log`: **10/10 passed**
+(desktop+mobile emulation, 1.1min). Latest local full run also10/10. Public
+Classic tests use two independent real clients; AI Arena observes real bots.
+Two fixture cases cover only large-cell rendering and held input; distinguish
+them from authoritative gameplay. Actual public extra smoke measured W36→22
+and split preserving36mass, distance/summed-radii2.08 on its first result frame.
+Raw two-sample timings75/81ms are not latency percentiles or input-to-photon.
+
+User feedback is implemented and published: sharp vector cells, 3600food with
+three masses/colors, 48virus tips, immediate input/heldW or touch eject,
+split200ms/eject100ms, longer separated split launch, shared interpolation clock,
+growth/spawn/consume/button transitions and native high-refresh rendering.
+Server snapshots15Hz+actions, visibility cache, async checkpoints. Names recover
+opacity after leaving/reentering view. Eight tactical bots/five profiles are live
+in AI Arena; public Classic mixes profiles and private Classic is human-only.
+**No trained model exists.**
+
+Final Go race statement coverage: engine91.4%, protocol93.0%, bot89.5%, store87.5%.
+Eight TS and four Python tests passed, plus lint/typecheck/vet/build/dependency and
+configured-secret-pattern gates. See docs/releases/0.2.1.md for full report,
+versioned real screenshots, test limitations and continuation prompt. No physical
+phones/Safari/high-refresh hardware were measured; do not claim universal60FPS.
+Final25/50/100-client benchmark data is in docs/performance, with100+56bots at
+29.997ticks/s,p99tick19.156ms,0disconnects,1supersededqueued snapshot; local loopback,
+not a WAN/WSS capacity guarantee. Earlier benchmark numbers below are historical.
+
+Deploy root helper verified manifest/checksum/candidate and made a backup before
+activation16:38:54. Scheduled backup+isolated restore verification manually rerun
+at16:39:15 succeeded. Prometheus jobcellsup=1 after deploy. App/tunnel/PG and
+deploy/backup timers active. QA/load services stopped; **all cells-qa temporary
+firewall rules removed**. Candidate port8081 free. Do not rebuild/reprovision to
+rediscover these facts. CT221lab is stopped; resources1CPU/cap.75,1.5GiB,8GiB,
+10.10.1.221; no Torch/SB3 or model yet. Its provisioning script is committed and
+includes firewall/SSH controls; do not run it against the existing CT.
+
+The original mission remains open. Next: headless authoritative environment,
+real bounded PPO in CT221,100held-out-seed episodes per random/heuristic/learned
+policy and honest promotion decision; then Teams/community. Off-host backups,
+DHCP reservation, authenticated Grafana integration and physical-device/WAN/soak
+validation remain pending. Production remains heuristics until evidence supports
+any learned replacement. Do not revisit Tribunal/OUTRAVIDA or corporate systems.
+
+## Earlier chronological notes — superseded where stated above
+
 The user's active mission is Cells. Do not resume Tribunal or OUTRAVIDA. The user
 explicitly authorizes public GitHub, isolated personal infrastructure and incremental
 production releases. Continue beyond foundation; do not report the whole mission done
