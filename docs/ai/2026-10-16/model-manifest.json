@@ -1,0 +1,56 @@
+{
+  "revision": "60f09e81c1008feecdbd0d4d4f589333393bcc1d",
+  "dirty": false,
+  "algorithm": "PPO",
+  "protocol": 1,
+  "observation": 80,
+  "action": 4,
+  "seed": 17,
+  "simulator_sha256": "4b5e7acecf02c656ae57c9604916ef2a07f50dc111acd2e8128520be858f4baa",
+  "python": "3.13.5",
+  "dependencies": {
+    "torch": "2.14.1+cpu",
+    "stable-baselines3": "2.9.0",
+    "gymnasium": "1.4.0",
+    "pettingzoo": "1.27.0",
+    "numpy": "2.5.4"
+  },
+  "arena": {
+    "size": 3200,
+    "food": 1200,
+    "viruses": 12,
+    "horizon": 300
+  },
+  "curriculum": [
+    {
+      "until": 8192,
+      "opponents": 0
+    },
+    {
+      "until": 16384,
+      "opponents": 3
+    },
+    {
+      "until": null,
+      "opponents": 7
+    }
+  ],
+  "started_utc": "2026-10-16T20:33:23.780100+00:00",
+  "production_promoted": false,
+  "parent_model_sha256": "7d7c4d510b5616c266bc6deaa3f75b72c3b45ba2b74db90fc214cc21c3d9eb5a",
+  "parent_timesteps": 32768,
+  "model_sha256": "d35644eb2b3c6b537a67122e4adc678b8958ec12e6976ae10c1f526197e6d380",
+  "num_timesteps": 33280,
+  "updates": 260,
+  "complete": true,
+  "elapsed_seconds": 4.200688157230616,
+  "hyperparameters": {
+    "n_steps": 512,
+    "batch_size": 64,
+    "n_epochs": 4,
+    "gamma": 0.995,
+    "gae_lambda": 0.95,
+    "ent_coef": 0.005,
+    "max_grad_norm": 0.5
+  }
+}

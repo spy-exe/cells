@@ -1,7 +1,9 @@
 # ADR 0004 — treinamento real em laboratório isolado
 
-Estado: implementação em andamento, após Cells 0.2.2/c11026d publicado e verificado.
-Nenhum modelo foi treinado ainda. Produção usa políticas heurísticas identificadas.
+Estado: implementado e executado após Cells0.2.2. PPO33,280passos e avaliação
+de300episódios concluídos no CT221; modelo perdeu para a heurística e não foi
+promovido. [Dados reais](../ai/2026-10-16/README.md). Produção usa políticas
+heurísticas identificadas. O plano abaixo registra o desenho do primeiro experimento.
 
 O binário Go headless reutiliza engine/bot e não abre rede nem banco. Stdio JSON
 v1 oferece reset/step/close, ações simultâneas para 1–4 agentes e o mesmo Tick30Hz.

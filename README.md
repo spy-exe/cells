@@ -14,6 +14,11 @@ Real learning experiments and further modes use separate release gates;
 see [scope](SPEC.md) and [continuity](CONTINUITY.md) for actual status.
 The [0.2.1 release report](docs/releases/0.2.1.md) records the visual/input fixes,
 public browser tests, actual screenshots and measured load results.
+The [0.3.0 report](docs/releases/0.3.0.md) adds elastic motion, opt-in sounds,
+collection feedback, authoritative round summaries and coherent food-goal memory.
+The [learning laboratory](ai/README.md) provides native Gymnasium/PettingZoo,
+bounded PPO training, recoverable checkpoints and paired evaluation. A model artifact
+does not imply that learned inference is active in public matches.
 
 ## Development
 

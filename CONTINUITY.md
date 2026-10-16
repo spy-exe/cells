@@ -1,5 +1,46 @@
 # Cells — active handoff
 
+## Learning and polish — 2026-10-16 17:44 America/Sao_Paulo
+
+Current delivery is0.3.0 on feat/learning-lab. Production was0.2.2/c11026d when
+this note was written; confirm publication from public /readyz and releasev0.3.0.
+Implementation367ee36 passed full feature CI38963476202, local14/14E2E plus final
+6/6feedback cases,10TS,7native Python contracts,4deployment boundary tests,
+Go race/integration/vet, critical statement coverage at least90%, npm audit0 and secret
+pattern scan. New native per-round stats, authenticated /api/run, elastic cells,
+actual collection feedback, gesture-enabled synthesized sounds and1.5sfood-goal
+commitment are implemented. No destructive DB/protocol migration.
+
+PPO training ACTUALLY completed in CT221: source60f09e81c1008feecdbd0d4d4f589333393bcc1d,
+32768steps plus verified512step resume=33280. Model checksum changed after resume.
+300held-out episodes (100each random/utility/PPO), nine exact-hash action replays.
+PPO mass-area2340.20 vs9533.49utility, ratio.24547, paired95%CI.21509–.27641;
+failed promotion. Production remains utility bots, now with independently tested
+objective memory. Frozen benchmark is pre-goal-memory policy, compact3200arena,
+not the production6000map. See docs/ai/2026-10-16 and docs/releases/0.3.0.md.
+Model/native simulator/licenses/replays/resolved dependencies are in ignored
+artifacts/ai/cells-ppo17-20261016.tar.gz for a GitHub release attachment, with
+AI-SHA256SUMS. Raw data and real plots are versioned; no fabricated training UI.
+
+CT221 now has CPU torch2.14.1+cpu/SB32.9.0/Gym1.4/PettingZoo1.27/NumPy2.5.4;
+optional matplotlib3.11.2 was installed after training to render reports. Venv/code
+root-owned, runs owned by cells-ai. Source and native binary remain frozen at the
+first experiment (source.json60f09e8, simulator4b5e7acecf02c656ae57c9604916ef2a07f50dc111acd2e8128520be858f4baa).
+Do not blindly sync/rebuild and then claim the old model is resumable: its source
+and binary hashes are deliberately enforced. No units are training now; shut down
+CT221 after copying verified artifacts. Stop QA/remove only cells-qa nft rules
+before production deployment (candidate needs8081). Privileged deployer unchanged.
+
+Next executable steps: finish report commit/push; successful final CI; fast-forward
+main and wait its CI artifact; stop QA/remove rules; native guarded deploy; verify
+exact public SHA, full public Playwright and authenticated run stats. Attach actual
+PPO archive/checksum/screenshots to semantic release. Record final evidence there.
+Then improve experiments with new validation seeds/longer horizon/production-size
+arenas, compare escape planning and profile outcomes, prepare Teams/community.
+Off-host backups, physical Safari/phone/WAN-soak and authenticated Grafana remain
+open. No corporate systems or unrelated projects changed. Older notes below are
+historical; never redevelop the completed foundations or claim model promotion.
+
 ## Controls follow-up — 2026-10-16 16:54 America/Sao_Paulo
 
 Patch0.2.2 on branchfix/action-availability, code1507d39 plus documentation:

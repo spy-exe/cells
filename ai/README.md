@@ -4,6 +4,11 @@ Production uses five **programmed utility policies**. The laboratory trains PPO
 against those policies through the authoritative Go simulator. Training never runs
 in the production service. A saved model is an experiment, not a production bot.
 
+The [first recorded experiment](../docs/ai/2026-10-16/README.md) trained33,280steps
+including a real checkpoint resume, then evaluated300episodes. PPO lost to the
+heuristic; no learned model was promoted. Figures use optional
+`pip install -r ai/requirements-reports.txt`, followed by `python -m ai.evaluation.plot`.
+
 ## Reproduce
 
 Python3.13, Go from go.mod. Install the official CPU Torch wheel first:
