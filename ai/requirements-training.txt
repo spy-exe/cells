@@ -1,0 +1,4 @@
+# Install the official CPU torch wheel separately; production never imports it.
+torch==2.14.1+cpu
+stable-baselines3==2.9.0
+-r requirements-env.txt

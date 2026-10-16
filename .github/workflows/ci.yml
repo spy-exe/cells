@@ -39,6 +39,12 @@ jobs:
       - run: go test -race -coverprofile=coverage-go.out ./...
         env:
           CELLS_TEST_DATABASE: postgres://cells@127.0.0.1:5432/cells?sslmode=disable
+      - name: Check native training environment contracts
+        run: |
+          go build -trimpath -o /tmp/cells-headless ./apps/game-server/cmd/headless
+          python3 -m venv .venv
+          .venv/bin/pip install -r ai/requirements-env.txt
+          CELLS_HEADLESS=/tmp/cells-headless .venv/bin/python -m unittest discover -s ai/tests -v
       - run: python3 scripts/critical-coverage.py coverage-go.out
       - run: npm run lint && npm run typecheck && npm test && npm audit --audit-level=high
       - run: npm run build

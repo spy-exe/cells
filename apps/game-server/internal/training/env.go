@@ -40,10 +40,11 @@ type AgentResult struct {
 	Metrics     Metrics     `json:"metrics"`
 }
 type Result struct {
-	Tick   uint64                 `json:"tick"`
-	Done   bool                   `json:"done"`
-	Agents map[string]AgentResult `json:"agents"`
-	Hash   string                 `json:"hash,omitempty"`
+	Tick    uint64                 `json:"tick"`
+	Done    bool                   `json:"done"`
+	Agents  map[string]AgentResult `json:"agents"`
+	Hash    string                 `json:"hash,omitempty"`
+	Actions map[string]Action      `json:"actions,omitempty"`
 }
 type Env struct {
 	World           *engine.World
@@ -214,6 +215,7 @@ func (e *Env) Step(actions map[string]Action) (Result, error) {
 	e.steps++
 	e.done = e.steps >= e.Config.Horizon || e.allDead()
 	r := e.Snapshot()
+	r.Actions = actions
 	for i, id := range e.ids {
 		if alive[id] {
 			a := r.Agents[e.names[i]]
@@ -245,8 +247,9 @@ func (e *Env) StepPolicy(policy string) (Result, error) {
 			}
 		} else {
 			d := bot.Decide(o, e.memory(id), "balanced")
-			a[0] = clip((d.X - o.X) / o.View)
-			a[1] = clip((d.Y - o.Y) / o.View)
+			dx, dy := (d.X-o.X)/o.View, (d.Y-o.Y)/o.View
+			scale := math.Max(1, math.Max(math.Abs(dx), math.Abs(dy)))
+			a[0], a[1] = dx/scale, dy/scale
 			a[2] = -1
 			a[3] = -1
 			if d.Actions&engine.Split != 0 {
@@ -255,6 +258,9 @@ func (e *Env) StepPolicy(policy string) (Result, error) {
 			if d.Actions&engine.Eject != 0 {
 				a[3] = 1
 			}
+		}
+		for j := range a {
+			a[j] = float64(float32(a[j]))
 		}
 		nanos += time.Since(start).Nanoseconds()
 		actions[e.names[i]] = a

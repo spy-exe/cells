@@ -54,6 +54,36 @@ func TestSeededEpisodeIsFiniteAndReproducible(t *testing.T) {
 	}
 	t.Fatal("episode never terminated at its horizon")
 }
+
+func TestReferenceCommandsReplayThroughFloat32PolicyBoundary(t *testing.T) {
+	cfg := smallConfig()
+	for _, policy := range []string{"heuristic", "random"} {
+		a, _ := New(81, cfg)
+		b, _ := New(81, cfg)
+		for i := 0; i < 10; i++ {
+			x, err := a.StepPolicy(policy)
+			if err != nil {
+				t.Fatal(err)
+			}
+			commands := map[string]Action{}
+			for name, action := range x.Actions {
+				for j := range action {
+					action[j] = float64(float32(action[j]))
+				}
+				commands[name] = action
+			}
+			if _, err = b.Step(commands); err != nil {
+				t.Fatal(err)
+			}
+			if a.Hash() != b.Hash() {
+				t.Fatal("recorded actions did not replay exactly", policy, i)
+			}
+			if x.Done {
+				break
+			}
+		}
+	}
+}
 func TestRejectsActionsWithoutChangingAuthoritativeState(t *testing.T) {
 	e, err := New(12, smallConfig())
 	if err != nil {
