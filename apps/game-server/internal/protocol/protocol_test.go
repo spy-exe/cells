@@ -2,8 +2,11 @@ package protocol
 
 import (
 	"encoding/binary"
+	"encoding/hex"
 	"github.com/spy-exe/cells/apps/game-server/internal/engine"
 	"math"
+	"os"
+	"strings"
 	"testing"
 )
 
@@ -46,4 +49,20 @@ func TestSnapshotLayout(t *testing.T) {
 	if len(b) < 53+len(o.Entities)*24 {
 		t.Fatal("truncated snapshot")
 	}
+}
+
+func TestGoldenSnapshot(t *testing.T) {
+	data, err := os.ReadFile("../../../../packages/protocol/fixtures/snapshot-v1.hex")
+	if err != nil {
+		t.Fatal(err)
+	}
+	o := engine.Observation{Tick: 30, Self: 7, Alive: true, Size: 1600, X: 800, Y: 800, View: 860, Mass: 36, SplitIn: 24, EjectIn: 6, TeamMass: [3]float64{36, 0, 0}, Entities: []engine.Visible{{ID: 8, Owner: 7, X: 800, Y: 800, Mass: 36, Kind: engine.Cell, Name: "João", Bot: true}}, Leaderboard: []engine.Rank{{ID: 7, Name: "João", Mass: 36, Bot: true}}}
+	if got := hex.EncodeToString(Snapshot(o)); got != strings.TrimSpace(string(data)) {
+		t.Fatal("cross-language wire contract changed")
+	}
+}
+func FuzzDecode(f *testing.F) {
+	f.Add([]byte{206, 1, 3})
+	f.Add([]byte{206, 1, 5, 0})
+	f.Fuzz(func(t *testing.T, b []byte) { _, _ = Decode(b) })
 }
