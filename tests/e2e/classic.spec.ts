@@ -112,6 +112,10 @@ test("espectador pode entrar e erros gráficos permanecem visíveis", async ({
   ).toBeEnabled();
   await page.getByRole("button", { name: "Voltar à arena" }).click();
   await expect(page.getByLabel("Fim da vida")).not.toBeVisible();
+  await page.route("**/api/logout", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    await route.continue();
+  });
   await page.getByRole("button", { name: "Sair da partida" }).click();
   await expect(page.getByRole("heading", { level: 1 })).toContainText(
     "Comece pequeno",

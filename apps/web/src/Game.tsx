@@ -32,6 +32,21 @@ export function Game({ nickname, mode, onLeave }: Props) {
     keys = useRef(new Set<string>());
   const pointer = useRef<{ x: number; y: number } | null>(null),
     stick = useRef<{ x: number; y: number } | null>(null);
+  const send = useRef<(extra?: number) => void>(() => {}),
+    ejectHeld = useRef(false),
+    lastKeyAction = useRef(0);
+  const [feedback, setFeedback] = useState({ kind: 0, seq: 0 });
+  const requestAction = (kind: number) => {
+    const s = latest.current;
+    if (!s?.alive) return;
+    const cells = s.entities.filter((e) => e.kind === 2 && e.owner === s.self);
+    if (kind === 1 && (cells.length >= 16 || !cells.some((e) => e.mass >= 36)))
+      return;
+    if (kind === 2 && !cells.some((e) => e.mass >= 32)) return;
+    setFeedback((v) => ({ kind, seq: v.seq + 1 }));
+    send.current(kind);
+    host.current?.querySelector("canvas")?.focus({ preventScroll: true });
+  };
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null),
     [connection, setConnection] = useState("Conectando…"),
     [error, setError] = useState(""),
@@ -120,7 +135,7 @@ export function Game({ nickname, mode, onLeave }: Props) {
       ws.onerror = () => setConnection("Reconectando…");
     };
     connect();
-    const input = setInterval(() => {
+    const transmit = (extra = 0) => {
       const ws = socket.current,
         s = latest.current;
       if (!s || ws?.readyState !== WebSocket.OPEN) return;
@@ -136,9 +151,19 @@ export function Game({ nickname, mode, onLeave }: Props) {
       const dx = Number(k.has("arrowright")) - Number(k.has("arrowleft")),
         dy = Number(k.has("arrowdown")) - Number(k.has("arrowup"));
       if (dx || dy) target = { x: s.x + dx * 800, y: s.y + dy * 800 };
-      ws.send(inputFrame(++seq.current, target.x, target.y, actions.current));
+      let commands = actions.current | extra;
+      if (
+        (keys.current.has("w") || ejectHeld.current) &&
+        s.entities.some(
+          (e) => e.owner === s.self && e.kind === 2 && e.mass >= 32,
+        )
+      )
+        commands |= 2;
+      ws.send(inputFrame(++seq.current, target.x, target.y, commands));
       actions.current = 0;
-    }, 50);
+    };
+    send.current = transmit;
+    const input = setInterval(() => transmit(), 50);
     const ping = setInterval(() => {
       if (socket.current?.readyState === WebSocket.OPEN)
         socket.current.send(controlFrame(5));
@@ -147,6 +172,7 @@ export function Game({ nickname, mode, onLeave }: Props) {
       stopped = true;
       clearTimeout(timer);
       clearInterval(input);
+      send.current = () => {};
       clearInterval(ping);
       socket.current?.close(1000);
     };
@@ -156,25 +182,39 @@ export function Game({ nickname, mode, onLeave }: Props) {
       if (
         e.target instanceof HTMLInputElement ||
         e.target instanceof HTMLSelectElement ||
-        e.target instanceof HTMLButtonElement
+        e.target instanceof HTMLTextAreaElement
       )
         return;
       const key = e.key.toLowerCase();
+      if (e.target instanceof HTMLButtonElement && key === " ") return;
       if (key.startsWith("arrow") || key === " " || key === "w")
         e.preventDefault();
       keys.current.add(key);
-      if (!e.repeat && key === " ") actions.current |= 1;
-      if (!e.repeat && key === "w") actions.current |= 2;
+      if (
+        (key === " " || key === "w") &&
+        (!e.repeat || performance.now() - lastKeyAction.current >= 100)
+      ) {
+        requestAction(key === " " ? 1 : 2);
+        lastKeyAction.current = performance.now();
+      }
     };
     const up = (e: KeyboardEvent) => keys.current.delete(e.key.toLowerCase());
     const blur = () => {
       keys.current.clear();
+      ejectHeld.current = false;
       actions.current = 0;
     };
+    const release = () => {
+      ejectHeld.current = false;
+    };
+    window.addEventListener("pointerup", release, true);
+    window.addEventListener("pointercancel", release, true);
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
     window.addEventListener("blur", blur);
     return () => {
+      window.removeEventListener("pointerup", release, true);
+      window.removeEventListener("pointercancel", release, true);
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
       window.removeEventListener("blur", blur);
@@ -274,7 +314,7 @@ export function Game({ nickname, mode, onLeave }: Props) {
       )}
       <div className="desktop-hint">
         <kbd>Mouse / ↑↓←→</kbd> mover <kbd>Espaço</kbd> dividir <kbd>W</kbd>{" "}
-        ejetar
+        segurar para ejetar
       </div>
       <div
         className="joystick"
@@ -310,9 +350,19 @@ export function Game({ nickname, mode, onLeave }: Props) {
         <button
           aria-label="Dividir célula"
           disabled={!snapshot?.alive || !!snapshot.splitIn}
-          onClick={() => (actions.current |= 1)}
+          onPointerDown={(e) => {
+            e.preventDefault();
+            requestAction(1);
+          }}
+          onClick={(e) => {
+            if (e.detail === 0) requestAction(1);
+          }}
         >
-          <Split size={23} />
+          <Split
+            key={feedback.seq}
+            className={feedback.kind === 1 ? "action-feedback" : undefined}
+            size={23}
+          />
           <span>Dividir</span>
         </button>
         <button
@@ -320,9 +370,27 @@ export function Game({ nickname, mode, onLeave }: Props) {
           disabled={
             !snapshot?.alive || !!snapshot.ejectIn || snapshot.mass < 32
           }
-          onClick={() => (actions.current |= 2)}
+          onPointerDown={(e) => {
+            e.preventDefault();
+            e.currentTarget.setPointerCapture(e.pointerId);
+            ejectHeld.current = true;
+            requestAction(2);
+          }}
+          onPointerUp={() => {
+            ejectHeld.current = false;
+          }}
+          onPointerCancel={() => {
+            ejectHeld.current = false;
+          }}
+          onClick={(e) => {
+            if (e.detail === 0) requestAction(2);
+          }}
         >
-          <Send size={21} />
+          <Send
+            key={feedback.seq}
+            className={feedback.kind === 2 ? "action-feedback" : undefined}
+            size={21}
+          />
           <span>Ejetar</span>
         </button>
       </div>

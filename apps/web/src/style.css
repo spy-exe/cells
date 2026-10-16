@@ -936,3 +936,22 @@ summary:focus-visible {
     font-size: 30px;
   }
 }
+
+@keyframes action-feedback {
+  0% {
+    transform: scale(0.7);
+  }
+  60% {
+    transform: scale(1.15);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.action-feedback {
+  animation: action-feedback 180ms ease-out;
+}
+.arena-canvas canvas:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -3px;
+}

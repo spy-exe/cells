@@ -5,18 +5,24 @@ import {
   WebGLRenderer,
   Container,
   Graphics,
+  GraphicsContext,
   Sprite,
   Text,
   Texture,
 } from "pixi.js";
-import type { Snapshot, Entity } from "../../../packages/protocol/game";
+import { MotionTimeline, virusPoints } from "./motion";
+import type { Snapshot } from "../../../packages/protocol/game";
 
 const palette = [
   0x90bc4b, 0xe19a76, 0x8c91d6, 0x68b5bd, 0xd6b465, 0xc584ae, 0x709bd2,
   0xb2b557,
 ];
 interface View {
-  sprite: Sprite;
+  sprite: Sprite | Graphics;
+  radius: number;
+  born: number;
+  retiring: number;
+  own: boolean;
   label: Text | null;
 }
 export class ArenaRenderer {
@@ -30,10 +36,19 @@ export class ArenaRenderer {
   private views = new Map<number, View>();
   private circle: Texture = Texture.EMPTY;
   private virus: Texture = Texture.EMPTY;
+  private cellShape = new GraphicsContext()
+    .poly(
+      Array.from({ length: 256 }, (_, i) => {
+        const a = (i * Math.PI) / 128;
+        return [Math.cos(a) * 256, Math.sin(a) * 256];
+      }).flat(),
+    )
+    .fill(0xffffff);
+  private timeline = new MotionTimeline();
   private current: Snapshot | null = null;
-  private previous = new Map<number, Entity>();
+
   private camera = { x: 0, y: 0, scale: 1 };
-  private lastReceived = 0;
+
   private quality = "high";
   private destroyed = false;
   private ready = false;
@@ -66,18 +81,14 @@ export class ArenaRenderer {
       "Arena Cells. Use mouse, setas ou toque para mover. Espaço divide e W ejeta massa.",
     );
     this.renderer.canvas.setAttribute("role", "img");
+    this.renderer.canvas.tabIndex = 0;
     const circle = new Graphics()
       .circle(64, 64, 61)
       .fill(0xffffff)
       .stroke({ width: 3, color: 0xffffff, alpha: 0.6 });
     this.circle = this.renderer.generateTexture(circle);
     circle.destroy();
-    const points: number[] = [];
-    for (let i = 0; i < 48; i++) {
-      const a = (i * Math.PI) / 24,
-        r = i % 2 ? 53 : 63;
-      points.push(64 + Math.cos(a) * r, 64 + Math.sin(a) * r);
-    }
+    const points = virusPoints();
     const virus = new Graphics()
       .poly(points)
       .fill(0xffffff)
@@ -106,10 +117,7 @@ export class ArenaRenderer {
     this.quality = quality;
   }
   update(snapshot: Snapshot) {
-    if (this.current) {
-      this.previous = new Map(this.current.entities.map((e) => [e.id, e]));
-      this.lastReceived = this.current.received;
-    }
+    this.timeline.push(snapshot);
     const first = !this.current || this.current.alive !== snapshot.alive;
     this.current = snapshot;
     if (first) {
@@ -123,10 +131,10 @@ export class ArenaRenderer {
     const rect = this.renderer.canvas.getBoundingClientRect();
     return {
       x:
-        this.camera.x +
+        (this.current?.x ?? this.camera.x) +
         (clientX - rect.left - rect.width / 2) / this.camera.scale,
       y:
-        this.camera.y +
+        (this.current?.y ?? this.camera.y) +
         (clientY - rect.top - rect.height / 2) / this.camera.scale,
     };
   }
@@ -153,29 +161,31 @@ export class ArenaRenderer {
     }
     const { width, height } = this.renderer.screen;
     const targetScale = Math.max(width / 1.9, height / 1.4) / s.view;
-    this.camera.x += (s.x - this.camera.x) * 0.2;
-    this.camera.y += (s.y - this.camera.y) * 0.2;
-    this.camera.scale += (targetScale - this.camera.scale) * 0.12;
+    const now = performance.now(),
+      center = this.timeline.center(now);
+    const reduced =
+      document.documentElement.dataset.motion === "reduce" ||
+      matchMedia("(prefers-reduced-motion: reduce)").matches;
+    this.camera.x = center.x;
+    this.camera.y = center.y;
+    this.camera.scale +=
+      (targetScale - this.camera.scale) *
+      (reduced ? 1 : 1 - Math.exp(-1000 / Math.max(1, this.measuredFPS) / 180));
     this.world.position.set(
       width / 2 - this.camera.x * this.camera.scale,
       height / 2 - this.camera.y * this.camera.scale,
     );
     this.world.scale.set(this.camera.scale);
-    const t = Math.min(
-      1,
-      Math.max(
-        0,
-        (performance.now() - 100 - this.lastReceived) /
-          Math.max(1, s.received - this.lastReceived),
-      ),
-    );
     const seen = new Set<number>();
     for (const e of s.entities) {
       seen.add(e.id);
       let v = this.views.get(e.id);
       if (!v) {
-        const sprite = new Sprite(e.kind === 4 ? this.virus : this.circle);
-        sprite.anchor.set(0.5);
+        const sprite =
+          e.kind === 2
+            ? new Graphics({ context: this.cellShape })
+            : new Sprite(e.kind === 4 ? this.virus : this.circle);
+        if (sprite instanceof Sprite) sprite.anchor.set(0.5);
         sprite.zIndex = e.kind === 1 ? 0 : e.kind === 4 ? 2 : 3;
         this.world.addChild(sprite);
         const label =
@@ -196,23 +206,51 @@ export class ArenaRenderer {
           label.zIndex = 4;
           this.world.addChild(label);
         }
-        v = { sprite, label };
+        v = {
+          sprite,
+          label,
+          radius: 4 * Math.sqrt(e.mass),
+          born: now,
+          retiring: 0,
+          own: e.owner === s.self && e.kind === 2,
+        };
         this.views.set(e.id, v);
       }
-      const prev = this.previous.get(e.id) ?? e,
-        x = prev.x + (e.x - prev.x) * t,
-        y = prev.y + (e.y - prev.y) * t,
-        r = 4 * Math.sqrt(prev.mass + (e.mass - prev.mass) * t);
+      const pose = e.kind === 1 ? e : (this.timeline.entity(e.id, now) ?? e);
+      const x = pose.x,
+        y = pose.y,
+        targetRadius = 4 * Math.sqrt(pose.mass);
+      v.radius +=
+        (targetRadius - v.radius) *
+        (reduced
+          ? 1
+          : 1 - Math.exp(-1000 / Math.max(1, this.measuredFPS) / 95));
+      v.retiring = 0;
+      const bornScale =
+        reduced || e.kind === 1 ? 1 : Math.min(1, 0.82 + (now - v.born) / 650);
+      const pulse =
+        !reduced && e.kind === 1 && e.mass >= 3
+          ? 1 + 0.06 * Math.sin(now / 320 + e.id)
+          : 1;
+      const r = v.radius * bornScale * pulse;
       v.sprite.position.set(x, y);
-      v.sprite.width = r * 2;
-      v.sprite.height = r * 2;
+      if (v.sprite instanceof Graphics) v.sprite.scale.set(r / 256);
+      else {
+        v.sprite.width = r * 2;
+        v.sprite.height = r * 2;
+      }
       v.sprite.tint =
         e.kind === 4
           ? 0x8bae65
           : s.teams && e.kind === 2
             ? [0xa6bd65, 0xe89b87, 0x88b6d7][e.team % 3]
-            : palette[(e.kind === 2 ? e.owner : e.id) % palette.length];
-      v.sprite.alpha = e.kind === 1 ? 0.65 : 1;
+            : (e.kind === 1
+                ? [0x729e19, 0xe27747, 0x696ed0, 0x27a3b1, 0xc79531, 0xbd5c95]
+                : palette)[
+                (e.kind === 2 || e.kind === 3 ? e.owner : e.id) %
+                  (e.kind === 1 ? 6 : palette.length)
+              ];
+      v.sprite.alpha = 1;
       if (v.label) {
         const name = e.name.length > 14 ? `${e.name.slice(0, 13)}…` : e.name;
         const text = `${name}${e.bot ? " · IA" : ""}`;
@@ -226,9 +264,15 @@ export class ArenaRenderer {
     }
     for (const [id, v] of this.views) {
       if (!seen.has(id)) {
-        v.sprite.destroy();
-        v.label?.destroy();
-        this.views.delete(id);
+        if (!v.retiring) v.retiring = now;
+        const progress = reduced ? 1 : Math.min(1, (now - v.retiring) / 120);
+        v.sprite.alpha = 1 - progress;
+        if (v.label) v.label.alpha = 1 - progress;
+        if (progress >= 1) {
+          v.sprite.destroy();
+          v.label?.destroy();
+          this.views.delete(id);
+        }
       }
     }
     this.world.sortableChildren = true;
@@ -246,6 +290,7 @@ export class ArenaRenderer {
       this.renderer.destroy({ removeView: true });
       this.circle.destroy(true);
       this.virus.destroy(true);
+      this.cellShape.destroy();
     }
     this.views.clear();
   }

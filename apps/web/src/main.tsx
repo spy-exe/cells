@@ -49,9 +49,17 @@ function App() {
       setBusy(false);
     }
   };
-  const leave = () => {
-    setPlaying(false);
-    void fetch("/api/logout", { method: "POST" });
+  const leave = async () => {
+    setBusy(true);
+    try {
+      const response = await fetch("/api/logout", { method: "POST" });
+      if (!response.ok) throw Error("Não foi possível encerrar a sessão.");
+      setPlaying(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Falha de conexão ao sair.");
+    } finally {
+      setBusy(false);
+    }
   };
   useEffect(() => {
     let active = true;
