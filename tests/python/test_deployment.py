@@ -3,6 +3,7 @@ import hashlib
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import tarfile
 import tempfile
@@ -36,8 +37,15 @@ class DeployBoundary(unittest.TestCase):
         with tempfile.TemporaryDirectory() as scratch:
             root=Path(scratch)
             with patch.object(deploy,'ROOT',root),patch.object(deploy,'STATE',root/'state'),patch.object(deploy,'get',get),patch.object(deploy,'backup') as backup,patch.object(deploy,'run'),patch.object(deploy,'healthy',return_value=False),patch.object(deploy.time,'sleep'):
-                with self.assertRaises((ValueError,RuntimeError)):
-                    deploy.deploy()
+                previous_mask=os.umask(0o077)
+                try:
+                    with self.assertRaises((ValueError,RuntimeError)):
+                        deploy.deploy()
+                finally:
+                    os.umask(previous_mask)
+                destination=root/'releases'/SHA
+                if destination.exists():
+                    self.assertEqual(destination.stat().st_mode & 0o777,0o755)
                 self.assertFalse((root/'current').exists())
                 self.assertFalse((root.parent/'escape').exists())
                 return backup.call_count

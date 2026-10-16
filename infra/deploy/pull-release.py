@@ -127,12 +127,13 @@ def deploy():
         destination = ROOT / 'releases' / sha
         if not destination.exists():
             shutil.copytree(unpack, destination)
+        os.chmod(destination, 0o755)
         for path in destination.rglob('*'):
             os.chmod(path, 0o755 if path.is_dir() or path.name == 'cells' else 0o644)
     backup(sha)
-    unit = f'cells-candidate-{sha[:7]}'
+    unit = f'cells-candidate-{sha[:7]}-{os.getpid()}'
     try:
-        run('systemd-run', '--unit=' + unit, '--property=User=cells', '--property=CPUQuota=50%', '--property=MemoryMax=512M', '--setenv=CELLS_ADDR=127.0.0.1:8081', '--setenv=CELLS_WEB_DIR=' + str(destination / 'web'), str(destination / 'cells'))
+        run('systemd-run', '--collect', '--unit=' + unit, '--property=User=cells', '--property=CPUQuota=50%', '--property=MemoryMax=512M', '--setenv=CELLS_ADDR=127.0.0.1:8081', '--setenv=CELLS_WEB_DIR=' + str(destination / 'web'), str(destination / 'cells'))
         for _ in range(20):
             if healthy('http://127.0.0.1:8081/readyz', sha):
                 break
