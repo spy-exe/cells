@@ -1,32 +1,47 @@
 # Cells — active handoff
 
-## Current organic candidate —2026-10-16 19:29 America/Sao_Paulo
+## Current organic release —2026-10-16 19:33 America/Sao_Paulo
 
-Candidate0.3.1 on `feat/organic-expedition`, engine/performance source4fb3db7.
-Previous production0.3.0 d128267. Organic membranes, visible food absorption,
-centered adaptive names (Unicode safe), mass ordering, outline-free viruses,
-near-cursor falloff,24 public Classic/32 AI Arena bots and staggered5Hz tactical
-updates are implemented. Private Classic remains human-only. Expedição is a
-real isolated seeded three-sector solo rules module with mutations and saves,
-behind `CELLS_EXPEDITION=0` by default. Rules in docs/game-design/expedition.md.
-First publish compatible0.3.1 OFF; then0.4.0 ON. Never roll back Rogue saves to
-older than0.3.1. Existing runs remain readable with the new-entry flag OFF.
+Production **0.3.1 /97e64bcd018a828292a2856f70baaab622dff1fe** was verified at
+`https://cells.malha.app/readyz` after guarded deployment19:32:42. MainCI
+38976082002 succeeded, including22 desktop/mobile browser cases and the expanded
+native/TS/security gates. `api/status` advertises Classic and AI Arena only; new
+Expedição entries remain OFF until0.4.0 activation. Actual browser cell3625/mass36
+survived0.3.0→0.3.1. Hold process `.runtime/hold-organic.mjs` is keeping that client
+connected for the next upgrade; evidence is in `artifacts/organic-upgrade-proof.json`
+and `/tmp/cells-organic-upgrade-hold.log` (no cookies).
 
-Verified local17TS, lint/typecheck/build, Go race/DB/vet; core90.6%, expedition
-95.6% before final validation guards; finalCI recomputes. Browser18 prior cases
-plus4 expedition cases pass across desktop/mobile after isolating runner outputs;
-see release0.3.1 report for the harness artifact-collision incident. Actual four
-native full-physics expedition playability seeds:17/42/91 win,123 dies in sector1.
-Final30-second25/50/100-client benchmark,32bots/room, source4fb3db7:100humans+
+Organic membranes, food absorption, centered adaptive Unicode-safe names,
+mass ordering, outline-free viruses, cursor falloff,24 public Classic/32 AI Arena
+bots and evenly scheduled5Hz decisions are implemented. Private Classic remains
+human-only. Expedição is a real isolated seeded three-sector solo module with
+mutations and saves. Rules in docs/game-design/expedition.md. Both0.3.1 and0.4.0
+understand Rogue checkpoints. Never roll back those saves to older than0.3.1;
+disabling the new-entry flag keeps existing runs playable.
+
+Final native30-second25/50/100-client benchmark, source4fb3db7:100humans+
 224bots,29.958ticks/s,p99tick30.993ms,RSS32.8MB,0disconnects,0drops. Raw JSON in
-`docs/performance/0.3.1-load.json`; not WAN/soak/hardware-FPS measurement.
+`docs/performance/0.3.1-load.json`; not WAN/soak/hardware-FPS measurement. Actual
+four full-physics expedition playability seeds:17/42/91 win,123 dies in sector1.
 
-Pending at this note: final mainCI/flag-OFF deploy/public smoke, then0.4.0 flag-ON
-release/public22-case suite and authenticated Rogue checkpoint/restart proof.
-QA and load services stopped; remove only nft rules tagged cells-qa before
-candidate uses8081. Do not start new training: PPO experiment is complete and
-failed promotion; CT221 remains stopped. Use the frozen source/binary if resuming.
-The older handoffs below are historical, not the current next steps.
+Next executable steps at this note: finish public0.3.1 browser suite and tag;
+merge the prepared release/0.4.0 after the compatible baseline, wait mainCI,
+deploy via existing root helper, safely back up own /etc/cells/cells.env and set
+CELLS_EXPEDITION=1, restart own Cells service, assert exact public revision/modes,
+run full22-case public suite plus actual Rogue checkpoint/new-run proof and
+backup/isolated-restore. Attach final evidence/continuation to semantic releases.
+QA/load services are stopped and the sole nft rule tagged cells-qa(handle18) was
+removed. Candidate8081 is free. CT221 remains stopped; do not retrain or rebuild
+its frozen source/binary as a routine deploy. Prior PPO failed promotion.
+
+User preference: **publish every validated increment promptly** so they can follow
+the live game. Commit/push main only with the relevant gates; the native deployer
+accepts successful main/push CI artifacts and polls every5minutes. Trigger its own
+`cells-deploy` service after CI to avoid waiting for the poll. No shared services,
+credentials, global Proxmox settings or corporate environments may be changed.
+
+Older handoffs below are historical; verify current public /readyz and the release
+assets before assuming that this in-repository note is the last deployed SHA.
 
 ## Learning and polish — 2026-10-16 17:44 America/Sao_Paulo
 
