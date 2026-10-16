@@ -34,6 +34,7 @@ jobs:
       - run: npm ci
       - run: test -z "$(gofmt -l apps/game-server)"
       - run: python3 scripts/check-secrets.py
+      - run: python3 -m unittest discover -s tests/python -v
       - run: go vet ./...
       - run: go test -race -coverprofile=coverage-go.out ./...
       - run: npm run lint && npm run typecheck && npm test && npm audit --audit-level=high

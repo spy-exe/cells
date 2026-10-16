@@ -3,7 +3,8 @@ from pathlib import Path
 import subprocess
 
 lines = subprocess.check_output(['go', 'list', '-m', '-f', '{{.Path}}|{{.Dir}}', 'all'], text=True).splitlines()
-notices = []
+goroot = Path(subprocess.check_output(['go', 'env', 'GOROOT'], text=True).strip())
+notices = ['Go standard library and runtime\n' + (goroot / 'LICENSE').read_text()]
 for line in lines:
     name, _, directory = line.partition('|')
     if not directory or name == 'github.com/spy-exe/cells':
