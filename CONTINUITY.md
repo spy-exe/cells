@@ -90,3 +90,112 @@ Do not spawn agents without explicit user/applicable skill instruction. Old
 social_reproduction_tests belongs to OUTRAVIDA and is irrelevant. Communicate concise
 Portuguese progress at least every minute. No secrets in logs/commits. Do not claim
 bots, training, modes or performance until actually implemented, executed and measured.
+
+## Update 2026-10-16 — live Classic and player feedback
+
+Production is **0.1.0 / 2763fe2f292fe739fbfb047194fe7a00dbd6aa78**, not the old
+foundation SHA above. Public two-client desktop and mobile WSS smoke passed. Main
+CI 38913970988 succeeded. Prometheus CT200 job cells is live and up=1; config backed
+up at /etc/prometheus/prometheus.yml.before-cells, promtool validated, safe reload.
+Daily backup/isolated restore succeeds. Actual foundation rollback/resume was tested.
+See docs/releases/0.1.0.md and docs/OPERATIONS.md for recorded evidence.
+
+Current branch **feat/tactical-arena**, remote head **82a869b**. Tactical bots and AI
+Arena are implemented (five profiles, same visible observations as humans), not yet
+published. First CI 6d40a00 failed an assumption about enemy visibility; fixed via
+legitimate spectator E2E (42e8457 CI succeeded). 82a869b CI then exposed a real logout
+race: menu rendered before session revocation, so reload could auto-resume. Current
+uncommitted fix awaits logout before menu. Do not rerun/merge the failed CI unchanged.
+
+The latest user played production and requests sharp large cells, denser/brighter
+variable food, double virus tips, smooth movement, immediate Space/W, better split
+separation/range and purposeful animations. **Prioritize and publish this feedback
+before training.** Work is in the same branch, planned version **0.2.1**. Latest code:
+- vector cell GraphicsContext instead of enlarging a 128px bitmap; virus 48 tips;
+- food default 3600 (was2000), mass1/2/3, stronger colors and rare-pellet subtle pulse;
+- buffered server-time interpolation with bounded extrapolation (motion.ts), camera
+  follows interpolated state; mouse direction uses current authoritative centroid;
+- immediate action send, held W/touch eject, split200ms/eject100ms with single buffered
+  commands, stronger/farther non-overlapping split launch;
+- snapshot15Hz plus immediate action snapshots; asynchronous checkpoint I/O and cloned
+  data outside tick lock; cached spatial visibility and aggregate masses per tick;
+- consume fade, launch/growth transitions, input feedback, reduced-motion support;
+- await logout before returning to the entry screen.
+
+Tests: actual initial RED for split reach/food diversity and missing motion module,
+then green. Eight TS unit tests currently pass. Last full Go race gate before the
+latest small changes: engine91.1%, protocol93%, bot89.5%, store87.5%. New checkpoint
+blocking-store regression passed: ticks continue while persistence waits. Ten local
+E2E passed (desktop+mobile, including real multiplayer and a clearly identified
+controlled large-cell/input fixture). Read /tmp/cells-feel-e2e.log. Newer hold-button
+assertion and latest bot reach/eject-speed changes still need final gate/build.
+Screenshots inspected: artifacts/fixture-large-cell-desktop.png (controlled fixture,
+not a real player record), artifacts/qa-arena-desktop.png and mobile equivalents.
+
+Uncommitted files include apps/game-server/cmd/load, motion.ts, feel.spec.ts, lab
+provision script and current feedback changes. Do not lose them. Commit small units,
+push, wait feature CI green, then ff main, main publish, deploy exact artifact and
+public smoke. Stop cells-qa and remove only rules tagged cells-qa before deploy;
+candidate needs8081. Root helper already installed with CELLS_CANDIDATE=1.
+
+Benchmark: load client/server run as own native transient units on CT220, loopback
+8082/metrics9109, DB cells_load. Synthetic RFC5737 CF-Connecting-IP rate buckets only
+on loopback simulate distinct clients; this is not an external 100-IP/WSS test.
+Clients25/50/100 plus bots, real binary WS and HTTP sessions. First20s stages:
+100 clients+48bots, zero disconnects/drops,29.845ticks/s,p99tick24.098ms, RSS24.8MB.
+It exposed reservation overfill; regression RED, fixed in82a869b. Second30s stages:
+25+16bots29.966ticks/s,p99tick8.015ms;50+32bots28.799ticks/s,p99tick12.513ms;
+100+56bots28.730ticks/s,p99tick22.103ms,RSS25.5MB, zero disconnects/drops.
+That fall corresponded to synchronous checkpoint I/O; current feedback fix is async.
+**Rerun final benchmark with new physics/food/snapshot/cache/save code**, record actual
+results (do not present target30 as achieved). Prior logs are in journal units
+cells-load-client and cells-load-client-final. Load server is stopped now. QA may be
+active on8081; inspect systemctl and own firewall rules. Only one benchmark/browser
+run per output directory; previous overlap corrupted Playwright artifacts.
+
+Additional Cells-only lab was provisioned: **CT221 cells-ai-lab-01**, Debian13.6,
+unprivileged/no nesting,1vCPU/cpulimit0.75,1536MiB RAM,256MiBswap,8GiB local-lvm,
+10.10.1.221/24/gw.254, timezone SãoPaulo,onboot0. Resource checks: host7GB available
+and thinpool~50GB physical free beforehand; CTIDfree and no ARP reply. Optional failed
+mounts masked as CT220. python3-venv installed, /opt/cells-ai/venv, cells-ai service
+user and own dirs. **No Torch/SB3, training or model yet.** SSH disabled, nftables
+cells_lab inputDROP (lo/established/ICMP/ND only), outputALLOW. Provision script currently
+misses final firewall/SSH manual steps: add before committing for reproducibility.
+Keep lab stopped while idle; finish feedback release first. PyPI confirmed SB3 stable
+2.9.0 requires Torch>=2.8,<3, Python>=3.10. Use official CPU Torch index, avoid CUDA
+wheels. Original mission still includes real PPO+100episode comparison, Teams,
+community/suggestions/moderation, CI Python tests, final benchmarks and full report.
+
+## Feedback gate update — 2026-10-16 12:09 America/Sao_Paulo
+
+Latest executable candidate is **0.2.1**, SHA **8bd24e8288e89a079d619778172418fb4f27afe0**.
+Committed and pushed feedback fixes: dd25f02 engine/hub, ccf627c web/motion/tests,
+7002e4d load/lab tools, 8bd24e8 version/rules. Hosted feature CI **38921286452
+SUCCEEDED**, including the complete ten-test desktop/mobile E2E suite. Latest Go
+race coverage: engine91.4%, protocol93.0%, bot89.5%, persistence87.5%; coverage is
+statements, not branches. Eight TS unit tests, four Python deploy tests,
+lint/typecheck/build/vet/secret/dependency gates passed. npm audit found0 issues.
+One local AI E2E initially failed because it required a transient first leader to
+stay visible; live binary-frame inspection showed actual bot movement and leader
+changes. It now tracks movement across all received visible frames, and passed six
+repeat desktop/mobile runs. All scenarios then passed together in hosted CI.
+The latest vector-circle fixture screenshot has been visually inspected; it is
+an explicit controlled rendering fixture, not an actual public player record.
+
+Final benchmark is now **completed and recorded** in docs/performance/0.2.1-load.json:
+25+16bots29.998ticks/s,p99tick8.022ms;50+32bots29.998,p9912.422;
+100+56bots29.997,p9919.156,RSS34.4MB,0disconnects,1replacedqueued snapshot.
+Each stage30s, real HTTP session/binaryWS loopback, not external WSS or WAN latency.
+QA and CT221 were stopped; shared homelab left intact. Test DB
+cells_load_feel_20261016 is isolated and retained for investigation. Load services
+are stopped. Temporary firewall rule taggedcells-qa was removed (handle14).
+The AI lab script now includes its SSH-disable and firewall configuration and is
+committed. CT221 is stopped, with no trained model or training dependencies yet.
+
+Next required action: fast-forward main **to verified8bd24e8**, wait main CI/release,
+trigger project deploy, verify public /readyz exact SHA and run actual public
+Classic+AI E2E desktop/mobile. Additional documentation on this feature branch may
+be newer than the executable candidate; do not claim a newer SHA is active until
+readiness proves it. Production is still0.1 until that activation is verified.
+Continue original mission afterward: real bounded PPO +100episode evaluation,
+Teams/community and remaining ops gaps. Do not claim learned bots already exist.
