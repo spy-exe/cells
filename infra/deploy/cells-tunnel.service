@@ -1,0 +1,18 @@
+[Unit]
+Description=Cells dedicated Cloudflare tunnel
+After=network-online.target cells.service
+Wants=network-online.target
+[Service]
+User=cells-tunnel
+Group=cells-tunnel
+ExecStart=/usr/local/bin/cloudflared --no-autoupdate --config /etc/cells/cloudflared.yml tunnel run
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+MemoryMax=192M
+CPUQuota=50%
+UMask=0077
+[Install]
+WantedBy=multi-user.target

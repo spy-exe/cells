@@ -1,0 +1,25 @@
+[Unit]
+Description=Cells authoritative game and API
+After=network-online.target postgresql.service
+Wants=network-online.target
+Requires=postgresql.service
+[Service]
+User=cells
+Group=cells
+WorkingDirectory=/opt/cells/current
+EnvironmentFile=/etc/cells/cells.env
+Environment=GOMAXPROCS=2 GOMEMLIMIT=768MiB
+ExecStart=/opt/cells/current/cells
+Restart=on-failure
+RestartSec=2
+TimeoutStopSec=10
+NoNewPrivileges=true
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+UMask=0027
+LimitNOFILE=8192
+TasksMax=128
+MemoryMax=1G
+CPUQuota=150%
+[Install]
+WantedBy=multi-user.target

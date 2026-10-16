@@ -1,0 +1,79 @@
+name: Cells quality and release
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: cells-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17-bookworm
+        env:
+          POSTGRES_USER: cells
+          POSTGRES_DB: cells
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ['127.0.0.1:5432:5432']
+        options: --health-cmd 'pg_isready -U cells' --health-interval 5s --health-timeout 3s --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '24.18.0'
+          cache: npm
+      - run: npm ci
+      - run: test -z "$(gofmt -l apps/game-server)"
+      - run: python3 scripts/check-secrets.py
+      - run: go vet ./...
+      - run: go test -race -coverprofile=coverage-go.out ./...
+      - run: npm run lint && npm run typecheck && npm test && npm audit --audit-level=high
+      - run: npm run build
+      - run: |
+          mkdir -p release
+          cells_version=$(node -p 'require("./package.json").version')
+          CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=$cells_version -X main.revision=$GITHUB_SHA" -o release/cells ./apps/game-server/cmd/cells
+          cp -r dist/web release/web
+          cp LICENSE release/LICENSE
+      - run: npx playwright install --with-deps chromium
+      - run: |
+          CELLS_DATABASE='postgres://cells@127.0.0.1:5432/cells?sslmode=disable' CELLS_WEB_DIR=dist/web release/cells > /tmp/cells-qa.log 2>&1 &
+          for n in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8080/readyz && break
+            sleep 1
+          done
+          npm run test:e2e
+      - name: Package verified release
+        run: |
+          printf '{"revision":"%s","version":"%s"}\n' "$GITHUB_SHA" "$(node -p 'require("./package.json").version')" > release/manifest.json
+          tar -czf cells-linux-amd64.tar.gz -C release .
+          sha256sum cells-linux-amd64.tar.gz > SHA256SUMS
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        with:
+          name: cells-release
+          path: |
+            cells-linux-amd64.tar.gz
+            SHA256SUMS
+  publish:
+    needs: verify
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+        with:
+          name: cells-release
+      - run: gh release create "build-$REVISION" cells-linux-amd64.tar.gz SHA256SUMS --repo spy-exe/cells --target "$REVISION" --title "Cells · ${REVISION:0:7}" --notes 'Verified build; deployment checks the manifest and health before activation.' --prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REVISION: ${{ github.sha }}

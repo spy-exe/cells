@@ -1,0 +1,1 @@
+{"profile":"product-admin","sourceRoots":["apps/web/src"],"locale":"pt-BR","canonicalMap":"UX-CONTRACT.md","requiredCapabilities":["Form","Scrollbar"],"requiredCommands":["lint","typecheck","unit","build"],"commands":{"lint":"npm run lint","typecheck":"npm run typecheck","unit":"npm test","build":"npm run build"},"evidence":{"failurePaths":"tests/e2e/foundation.spec.ts"}}

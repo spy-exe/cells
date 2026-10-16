@@ -15,3 +15,8 @@ bin/
 *.db
 *.dump
 *.log
+apps/web/public/licenses.txt
+coverage-go.out
+release/
+cells-linux-amd64.tar.gz
+SHA256SUMS
