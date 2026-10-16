@@ -5,7 +5,7 @@ test('entrada honesta, servidor real e preferência de movimento',async({page})=
  await page.goto('/');
  await expect(page.getByRole('heading',{level:1})).toContainText('Comece pequeno');
  await expect(page.getByRole('status')).toContainText('Servidor online');
- await expect(page.getByRole('button',{name:'Entrar na arena'})).toBeDisabled();
+ await expect(page.getByRole('button',{name:'Entrar na arena'})).toBeEnabled();
  await page.getByRole('switch',{name:/Reduzir movimento/}).click();
  await page.reload();
  await expect(page.getByRole('switch',{name:/Reduzir movimento/})).toHaveAttribute('aria-checked','true');

@@ -1,52 +1,92 @@
-# Cells — missão ativa
+# Cells — active handoff
 
-## Pedido e escopo
+The user's active mission is Cells. Do not resume Tribunal or OUTRAVIDA. The user
+explicitly authorizes public GitHub, isolated personal infrastructure and incremental
+production releases. Continue beyond foundation; do not report the whole mission done
+while Classic, tactical bots/AI Arena, real PPO training/evaluation, Teams/community,
+load tests and operations remain viable.
 
-O usuário mudou explicitamente de Tribunal para Cells em 16/10/2026 e autorizou implementação, infraestrutura pessoal, GitHub público, deploy e evolução. **Não parar após fundação:** objetivo desta execução é Classic multiplayer, bots táticos/AI Arena, treinamento real e avaliação, Teams/comunidade, CI/CD, carga, backup e relatório final. Ler SPEC.md e docs/INFRASTRUCTURE.md. Não acessar ambientes corporativos Opikode/SENAI/SENAC/CETIQT/Zeus/Hades/Atena/Poseidon. Não alterar outros projetos.
+## Production foundation
 
-Tribunal foi deixado seguro na produção 0.6.0/8bcba81. Candidato 0.7.0 da branch feat/evidence-in-session (3c0b582) passou CI 38777176877; checkpoint 9201530 foi enviado ao GitHub, sem merge ou deploy. Não retomar Tribunal nesta missão.
+Repository: https://github.com/spy-exe/cells (public, AGPL-3.0-only).
+Stable main foundation: aa1fbcd489b6e37146d43beac3cfabf7f9ace566, version 0.0.1.
+Public URL https://cells.malha.app passed HTTPS readiness and HTTP 308 redirect.
+Actual public foundation E2E: 2 passed (desktop and mobile). A PostgreSQL dump was
+restored into cells_restore_verify, queried (cells_schema count 1) and the temporary
+clone removed successfully. Native automatic deploy is active every five minutes.
 
-## Infra real descoberta/provisionada
+Personal node pve, Proxmox 9.2.4. Dedicated unprivileged CT 220 cells-prd-01,
+Debian 13.6, 4 vCPU/cpulimit 2, 6144MiB RAM, 512MiB swap, 40GiB local-lvm,
+vmbr0, 10.10.1.220/24, gateway 10.10.1.254, timezone America/Sao_Paulo.
+No nesting. Do not alter other projects, corporate environments or global PVE rules.
+Host root only has about 2.5GiB free; Go/Python heavy builds belong in Cells-owned
+CT storage. No unrelated cache or volumes may be cleaned. DHCP reservation is not
+proven; the static address followed existing service ranges and passed ARP checks.
 
-Host pessoal único pve, Proxmox9.2.4, Ryzen73700U,8threads,17.5GiBRAM,~6.6GiBdisponível e swap6.7/8GiBocupada. Filesystemhost só~2.5GiBlivre após deps Node; não instalar Go/PyTorch ou backups grandes nele. local-lvm156.87GiB,65.21%usado no início (~54.6GiBlivres). Nenhum recurso de terceiros limpo.
+Native PostgreSQL 17, peer-authenticated cells role/database, loopback/socket only.
+App user cells, tunnel user cells-tunnel. Cloudflare dedicated Cells tunnel and DNS;
+see docs/INFRASTRUCTURE.md. Never print credentials or origin certificates.
+/etc/cells/cells.env, /etc/cells/cloudflared.yml and tunnel.json are private.
+Service units: cells, cells-tunnel, cells-deploy.timer, postgresql, nftables.
+Reviewed deploy helper /usr/local/libexec/cells/pull-release.py downloads only a
+successful main CI artifact, verifies its digest/manifest, backs up DB, starts a
+nonprivileged candidate and atomically activates with local/public readiness. A
+rollback changes application symlinks, never overwrites newer DB state.
 
-CT **220 cells-prd-01** provisionado e rodando, Debian13.6, não privilegiado, **sem nesting**,4vCPU/cpulimit2,6144MiBRAM,512MiBswap,40GiBthin local-lvm,onboot,America/Sao_Paulo. vmbr0,IPfixo **10.10.1.220/24**,gateway10.10.1.254,DNS1.1.1.1. CTID validado livre; IP não respondeu ARP antes. Pool DHCP completo não conhecido (ofertas88–90,lease60s); registro estático segue padrão de serviços200–219. Não há reserva DHCP comprovada.
+## Current work (Classic)
 
-systemd257 do template falhou em tmp.mount/run-lock.mount/dev-mqueue.mount; foram mascaradas somente essas montagens opcionais dentro do CT, diretórios tmp/lock com1777, resetfailed. Agora systemd running e nenhum failed. Não habilitar nesting por advertência genérica do PVE. Hostchrony sincronizado; relógio do LXC é o do host.
+Branch feat/classic-engine extends main. Check git status before work. Engine and
+binary protocol are committed separately; remaining integration/UI changes may be
+uncommitted. Do not merge main until full hosted CI succeeds. GitHub Actions uses
+hosted Ubuntu, not a privileged self-hosted public-repository runner.
 
-PostgreSQL17.11 nativo ativo, somente127.0.0.1/::1 e socketUnix. UsuárioLinuxcells,PGrolecells,DBcells criados; autenticaçãopeer local, sem senha fixa. Banco contém apenas cells_schema versão1 nesta fase. Go1.27.2 em /opt/cells/toolchains/go (SHAoficial ecbadb99091a3f46e31f5f934b068b1864eafa7995211b39eaddf76996045fe5 verificado). PATH de pctexec não inclui/usr/local/bin; usar caminho absoluto ou exportPATHincluindoGo/bin e/usr/sbin. gcc/libcdev instalados para teste-race. Não foi instalado Node no CT; buildweb usaNode24.18.0 já disponível no host/CI. Rootworkspace /root/proj/cells.
+Engine tests were RED before implementation. Initial Go race run: engine 89.1%
+statement coverage, protocol 88.7%, server 63% (package-local instrumentation).
+Classic integration covers guest origins, strict JSON, secure cookies, separate
+identities and invalid WebSocket input. Store integration caught abandoned rooms
+being resurrected after save: actual RED; fix replaces persisted room keys atomically.
+A follow-up race run with cross-package instrumentation is being executed; read
+/tmp/cells-classic-go-final.log and inspect results before claiming success.
 
-Firewall nftables exclusivo doCT ativo: tabela inet cells,inputDROP,lo/established/ICMPeND permitidos,métricas9108somente10.10.1.200. IPv6globalrecebido masentradafiltrada. SSH não permitido na rede,adminporpct. Não habilitar firewallglobalPVE (estádesabilitado).
+UI: React/TS/Vite, explicit Pixi WebGL renderer, custom textures, grid, interpolation,
+keyboard/mouse/touch, HUD/minimap/ranking, death/respawn and reconnect. Visual QA
+caught blank canvas despite working HUD. Fixed using Pixi's CSP-safe polyfill module
+pixi.js/unsafe-eval (does not relax CSP), explicit renderer and separate render errors.
+E2E now requires canvas plus nonzero measured FPS. Four E2E tests passed on isolated
+QA after that fix; see /tmp/cells-classic-final.log. Screenshots in artifacts/ were
+actually inspected. Latest UI resume/quality changes need a rebuilt QA and E2E.
 
-Cloudflare: certificado de gestão já disponível em /root/outravida/.runtime/cert.pem foi usado sem copiá-lo. Túnel exclusivo **187205be-962b-4abf-b398-b1cadc09599f / cells-prd-01**,credencial própria ignorada em .runtime/tunnel.json e instalada /etc/cells/tunnel.json0600,cells-tunnelowner. Config /etc/cells/cloudflared.yml,origem127.0.0.1:8080,métricas127.0.0.1:2001. Cloudflared2026.10.1 instalado porSHAoficial3bfc539f45d2620c71debb7a86be0efa737ed5ccbad9eb85c787116900e5c586. DNS **cells.malha.app criado** via cloudflared route dns. Unit cells-tunnel habilitada/ativa. HTTPS já responde comTLSválido,porém **502 porque aplicação de produção ainda não foi ativada**. Não declarar fase0 publicada até/readyzok comSHA.
+QA: cells-qa.service at 10.10.1.220:8081, DB cells_qa, native binary /opt/cells/qa-binary,
+web /opt/cells/qa-web. nftables temporary rules tagged cells-qa allow only host
+10.10.1.253. Remove ONLY these rules and stop QA before deployment: candidate uses
+8081. There is an explicit drop near the end of input; QA allow must precede it.
+Never run two Playwright processes writing to the same test-results directory.
 
-Units cells.service e cells-tunnel.service instaladas,env /etc/cells/cells.env0640root:cells. cells.service ainda sem /opt/cells/current/cells; validação do binário inexistente é esperada antes da primeira release. Túnel rodausercells-tunnel; app rodaráusercells,NoNewPrivileges,semcapabilities,MemoryMax1G,CPUQuota150%. Sem namespaces de filesystem que exigiriam nesting; código/releases rootowned. Não iniciar aplicação deprodução antes dos gates.
+Go toolchain /opt/cells/toolchains/go/bin/go inside CT (not on host). Use PATH with
+/usr/sbin for runuser. infra/deploy/sync-build.sh copies own sources excluding secrets
+and generated deps to /opt/cells/build. Format Go there and pull formatted files back.
+Node 24.18.0 already exists on host. Chromium for Playwright:
+CHROMIUM_PATH=/root/.cache/ms-playwright/chromium-1234/chrome-linux64/chrome.
+Commands npm run lint, npm run typecheck, npm test, npm run build, npm run test:e2e.
+Public E2E uses E2E_BASE_URL=https://cells.malha.app. Preserve original screenshots.
 
-Prometheus/Grafana emCT20010.10.1.200 comdisco94%; configuração existente em/etc/prometheus/prometheus.yml,semfileSDobservado. Integrar scrape próprio combackup/promtool/reloadseguro; não reiniciar Grafana. Outros projetospreservados. Não adicionarvzdump ao disco quasecheio dohost. Treino deverá ocorrer fora doCTde jogo; CTID221foiconfirmadolivre mas **não provisionado**. Planejar laboratórioCells limitadoCPU/mem/disco e medircapacidadeantes. Nenhum treinamento foi executado.
+## Next executable steps
 
-## Código e verificação atual
+1. Complete latest race/vet/store regression and UI E2E; inspect screenshots/console.
+2. Ensure candidate helper sets CELLS_CANDIDATE=1 so it cannot save production rooms.
+   Install reviewed helper only after its tests. Commit remaining Classic increment,
+   push feature branch, wait CI, fast-forward main, wait main release artifact.
+3. Stop QA/remove own firewall rules, deploy verified artifact, public two-client WSS
+   E2E and exact SHA readiness. Update this handoff with actual version/commit.
+4. Tactical utility bots using only public engine.Observation (five profiles), AI Arena.
+5. Separate Cells-owned training CT (221 was free but NOT created); remeasure host
+   memory/storage, cap CPU/memory. Real SB3 PPO, headless authoritative Go simulator,
+   100 held-out episodes comparing random/heuristic/trained, honest report and baseline
+   in production unless learned model improves. No heavy training on game server.
+6. Teams, public community, measured load 25/50/100, Prometheus scrape integration,
+   daily backups/isolated restoration and rollback demonstration. Other projects untouched.
 
-Repo **https://github.com/spy-exe/cells**,público,AGPL-3.0,Gitspy-exeautenticado. main aindaébootstrapcdeba3b; trabalho em **feat/foundation**,commitsca52daf,b710bff,039af3d. PrimeirocommitcontinhatesteREDdehealth e nãoérelease. Não reescreverhistórico. Últimofeaturecommit/estadoverificarGit.
-
-React19.3.1,Pixi8.22.0,Vite8.3.4,TS7.0.2,Vitest5.0.5,Playwright1.64.1,pinnedpackage-lock. Go módulo github.com/spy-exe/cells,pgx5.11.0. Frontendfoundation main.tsx: entrada originalcomorbsSVG/CSS decorativos,marcaoriginal,fontsSpaceGrotesk/Inter,controlesdemovimento,formulário **desabilitado enquanto status.modes=[]**. Não háengine/protocoloWS/bots/treino/Teams/comunidade ainda. Não apresentá-los como feitos. packages/protocol/status.tsvalidaAPI.
-
-BackendGoapps/game-server/cmd/cells e internal/server: health/ready/status eassets,CSP/HSTS/HTTP→HTTPScomorigemfixa,PGping/readiness,cells_schema1. Estápreparadoparaexpansão. Errobindagorafalhacomexit1(paraRestart=on-failure);testeintegracaostartup.shreproduziuRED(exit0)epassouGREENcontraoutroservidorna8081.
-
-GohealthTDDREDreal(Config/Newausentes)→GREEN. TestesGo-raceaprovados(duasfunçõesdeserver),vetaprovado;2unitáriosTS,lint/typecheck/build/auditdepssemvulnerabilidades,staticpremiumaudit0achados. E2Elocal **2passaram desktop/mobile**,axe0,layouts360×800/390×844/412×915/768×1024/1440×900,preferênciapersistente. Chromiumhost/ root/.cache/ms-playwright/chromium-1234/chrome-linux64/chrome. Comandos: npmtest/npmruntypecheck/npmrunbuild/npmrunlint. Go via CTouCI.
-
-QArodando **cells-qa.service**,usercells,8081privada,binário/tmp/cells-foundation,web/opt/cells/build/dist/web. Regra nft temporária cells-qapermite8081somentehost10.10.1.253. **Parar QA e remover somente essa regra antes do deployhelper**,pois candidato usa8081loopback. EssaQAfoiisoladadoprod,semusuáriosreais.
-
-Buildhelper infra/deploy/sync-build.sh transportafontessem.git/node_modules/.runtime/.envpara/opt/cells/build. Go cache/toolchains noCT. AtençãoPath: /usr/sbin/runuser ou PATHcompleto. Rootnão temGo. Nodehost jáinstalado24.18,nãofoialterado. FontesGoformatadasnoCTe trazidasdevoltaporpctpull. RodarGo-raceaoalterarmotor.
-
-GitHubCI .github/workflows/ci.yml: hostedUbuntu,Postgres17containerCItrustsóloopback,npmci,Goformat/vet/race,TS/lint/unit/audit,build,Playwright,artefatomanifest/SHA256. Publishjobcontentswriteapenasmainpush,GitHubreleaseprereleasebuild-<sha>depoisverify;nenhumrunnerpúbliconohomelab.
-
-CI38905636089falhouantesdostestesporquotinghealthcmddoservice;corrigidoparacmdúnicopg_isready. CI38905931698passouGo/TS,masfalhoubuildporpublicdirgeradolicençasnãotrackeado;corrigidomkdirrecurseefaviconoriginaltrackeado. **CIatual039af3dverificar**,nãoassumiraprovado. Scriptsnotices preservalicençasNPMempublic/licenses.txt(ignorado,geradobuild). scripts/go-notices.pyagorafoiescritoparapreservarlicençasdosmódulosGonoartefato; **alteraçãoaindapodeestarsemcommit**,verGit. Secretpattern gate scripts/check-secrets.pysemsecretdetectado.
-
-## Próximo passo imediato
-
-1. Terminar/testarcommitdoshelpersdeCDelicençasGo; conferirCIatual, corrigirfalhasreais, não fazerdeploycomgatefalhando.
-2. CDroothelper infra/deploy/pull-release.py estáimplementadomasaindanãoinstalado/executado: consultaCIbem-sucedidomain/push,releasebuildsha,checksum,tarsemtraversal/links,ELF/manifest;backupPGantesdecandidato;candidateusercellsem8081;trocaatomiccurrent/readinesslocal/HTTPS;rollbacksemreverterDB;--rollbackcriahold,--resumeretoma. Revisar/testarsegurança/transições antesdeinstalarrootownedem/usr/local/libexec/cells. Unitsdeploy.service/timer5minaindaapenasfontes. APIpúblicasemtokenGitHub,semcredenciaisinfraemActions. Fixardocs-onlypoll404futurosepublicaçãoforfiltradapordocs(atualCIexecutatodosospushes).
-3. QuandofeatureCIverde,fast-forwardmainsemanularhistórico,push,esperarverify+publishdomain. Pararcells-qa,removerregra8081ownQA,instalarhelper/units. PrimeirodeployviahelperdevebaixarartefatoCIeativar/readyzversão0.0.1SHAexato;validarHTTPS/redirectexternos,smoke,PGbackup/restoreisolado. Nãoesperarprodparaimplementarremainingarquiteturaexcessiva: objetivoévidaClassicjogávelrapidamente.
-4. **Continuar imediatamente Phase1**: engineGoindependentedarede,TDDdeterminístico(seedserializável),spatialgrid,protocoloWSbinário,frontendPixi,guestHTTPcookieHttpOnly/sessionPG,split/eject/virus/merge,múltiplascélulas,respawn/spectator/minimap/leaderboard/reconnect. Semfakefeatures. Depoisbotutilityprofile5+AIarena,treinoheadlessPPOreal100episseedscomparativos(heurísticanaprodsemodelopior),Teams/community,load25/50/100,metrics/backups/rollbackeE2Epúblico2clientes.
-
-Não entregar apenasessa fundação como missão concluída. O usuário autorizou a execução completa por fases. Atualizaçõesemportuguês≤60s,semperguntasdesnecessárias. Nãospawnsubagentessemrequisiçãoexplícitaouinstruçãodeskillaplicável. Nenhumagentenovoficoutrabalhando;social_reproduction_testsélegadoOUTRAVIDAconcluído e irrelevante.
+Do not spawn agents without explicit user/applicable skill instruction. Old
+social_reproduction_tests belongs to OUTRAVIDA and is irrelevant. Communicate concise
+Portuguese progress at least every minute. No secrets in logs/commits. Do not claim
+bots, training, modes or performance until actually implemented, executed and measured.
