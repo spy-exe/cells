@@ -1,5 +1,19 @@
 # Cells — active handoff
 
+## Controls follow-up — 2026-10-16 16:54 America/Sao_Paulo
+
+Patch0.2.2 on branchfix/action-availability, code1507d39 plus documentation:
+split/eject button eligibility now checks individual cell mass and the16cell cap,
+with visible36/32per-cell requirements. Two18cells total36 cannot act; previous
+buttons were enabled despite requestAction/server correctly rejecting the action.
+New E2E was actually RED on public0.2.1, then GREEN on the fixed UI. Full local
+suite12/12passed, TS8passed, lint/typecheck/build passed. Mobile390x844 and desktop
+screenshots inspected; controlled-fixture image committed with explicit caption.
+See docs/releases/0.2.2.md and its GitHub release link for publication evidence,
+and public /readyz for active revision. No engine/rules changes in this patch.
+At the time of this note, feature CI is running; publish only after its gate,
+then main gate and real public smoke. Do not redevelop the already-fixed controls.
+
 ## Latest verified state — 2026-10-16 16:43 America/Sao_Paulo
 
 **Cells 0.2.1 is live**, initial deployment from main revision
