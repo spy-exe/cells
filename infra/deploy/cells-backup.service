@@ -1,0 +1,10 @@
+[Unit]
+Description=Cells database and private configuration backup
+After=postgresql.service
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/cells/backup.py --verify
+UMask=0077
+CPUQuota=25%
+MemoryMax=192M
+TimeoutStartSec=180
