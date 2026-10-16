@@ -44,6 +44,7 @@ jobs:
           CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=$cells_version -X main.revision=$GITHUB_SHA" -o release/cells ./apps/game-server/cmd/cells
           cp -r dist/web release/web
           cp LICENSE release/LICENSE
+          python3 scripts/go-notices.py
       - run: npx playwright install --with-deps chromium
       - run: |
           export CELLS_DATABASE='postgres://cells@127.0.0.1:5432/cells?sslmode=disable'
