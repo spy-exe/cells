@@ -83,9 +83,54 @@ func (h *Hub) Load(ctx context.Context) error {
 				r.Absent[p.ID] = time.Now().Add(30 * time.Second)
 			}
 		}
+		// Older checkpoints did not contain per-run statistics. Start measuring
+		// active lives at migration, without inventing their earlier duration.
+		for i := range r.World.Players {
+			p := &r.World.Players[i]
+			if !p.HasRun && p.Alive {
+				p.HasRun = true
+				p.RunBorn = r.World.Tick
+				p.RunPeak = r.World.Mass(p.ID)
+			}
+		}
 		h.rooms[v.Key] = &r
 	}
 	return nil
+}
+
+type RunSummary struct {
+	HasRun  bool    `json:"has_run"`
+	Alive   bool    `json:"alive"`
+	Peak    float64 `json:"peak"`
+	Record  float64 `json:"record"`
+	Kills   int     `json:"kills"`
+	Seconds float64 `json:"seconds"`
+	Deaths  int     `json:"deaths"`
+}
+
+func (h *Hub) RunSummary(hash string) (RunSummary, bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for _, r := range h.rooms {
+		id, ok := r.Identities[hash]
+		if !ok {
+			continue
+		}
+		p := r.World.Player(id)
+		if p == nil {
+			return RunSummary{}, false
+		}
+		until := r.World.Tick
+		if !p.Alive {
+			until = p.DiedAt
+		}
+		seconds := 0.
+		if p.HasRun && until >= p.RunBorn {
+			seconds = float64(until-p.RunBorn) / engine.TickRate
+		}
+		return RunSummary{HasRun: p.HasRun, Alive: p.Alive, Peak: p.RunPeak, Record: p.Peak, Kills: p.RunKills, Seconds: seconds, Deaths: p.Deaths}, true
+	}
+	return RunSummary{}, false
 }
 func (h *Hub) Join(s store.Session, c *websocket.Conn) (*Peer, error) {
 	h.mu.Lock()
@@ -370,7 +415,9 @@ func (h *Hub) Save(ctx context.Context) error {
 		world.Players = append([]engine.Player{}, r.World.Players...)
 		memories := make(map[uint32]*bot.Memory, len(r.Memories))
 		for id, m := range r.Memories {
-			memories[id] = &bot.Memory{Seen: maps.Clone(m.Seen)}
+			copy := *m
+			copy.Seen = maps.Clone(m.Seen)
+			memories[id] = &copy
 		}
 		snapshots[key] = Room{World: &world, Identities: maps.Clone(r.Identities), Absent: maps.Clone(r.Absent), Memories: memories}
 	}

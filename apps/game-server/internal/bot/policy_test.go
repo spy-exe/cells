@@ -17,6 +17,35 @@ func TestFindFood(t *testing.T) {
 		t.Fatal(d)
 	}
 }
+func TestForageCommitmentStillYieldsToValueDangerAndExpiry(t *testing.T) {
+	o := scene()
+	o.Entities = append(o.Entities,
+		engine.Visible{ID: 3, Kind: engine.Food, X: 3100, Y: 3000, Mass: 1},
+		engine.Visible{ID: 4, Kind: engine.Food, X: 3000, Y: 3105, Mass: 1})
+	m := &Memory{}
+	if d := Decide(o, m, "balanced"); d.X != 3100 {
+		t.Fatal(d)
+	}
+	o.Tick = 6
+	o.Entities[2].Y = 3095
+	if d := Decide(o, m, "balanced"); d.X != 3100 {
+		t.Fatal("flipped between nearly equal food targets", d)
+	}
+	o.Entities[2].Mass = 3
+	if d := Decide(o, m, "balanced"); d.Y != 3095 {
+		t.Fatal("ignored valuable alternative", d)
+	}
+	o.Tick = 60
+	o.Entities[2].Mass = 1
+	o.Entities[1].X = 3090
+	if d := Decide(o, m, "balanced"); d.X != 3090 {
+		t.Fatal("expired objective was retained", d)
+	}
+	o.Entities = append(o.Entities, engine.Visible{ID: 5, Owner: 9, Kind: engine.Cell, X: 3100, Y: 3000, Mass: 400})
+	if d := Decide(o, m, "balanced"); d.Reason != "flee" || d.Actions != 0 {
+		t.Fatal("food commitment ignored danger", d)
+	}
+}
 func TestFleeThreat(t *testing.T) {
 	o := scene()
 	o.Entities = append(o.Entities, engine.Visible{ID: 3, Owner: 9, Kind: engine.Cell, X: 3130, Y: 3000, Mass: 300})

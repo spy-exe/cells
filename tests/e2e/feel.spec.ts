@@ -19,6 +19,52 @@ const fixture = () => {
   b.writeFloatLE(40000, 86);
   return b;
 };
+test("feedback de coleta, áudio opt-in e resumo acessível da rodada", async ({ page }, info) => {
+  const errors: string[] = [];
+  page.on("pageerror", e => errors.push(e.message));
+  let publish: ((mass: number, alive: boolean) => void) | undefined;
+  let tick = 60;
+  await page.route("**/api/run", route => route.fulfill({ json: {
+    has_run: true, alive: false, peak: 40003, record: 42000, kills: 2, seconds: 87,
+  }}));
+  await page.routeWebSocket("**/ws", ws => {
+    publish = (mass, alive) => {
+      const b = fixture();
+      b.writeUInt32LE(tick += 3, 3);
+      b[11] = alive ? 1 : 0;
+      b.writeFloatLE(mass, 28);
+      b.writeFloatLE(mass || 40003, 69);
+      ws.send(b);
+    };
+    publish(40000, true);
+  });
+  await page.goto(`/?room=feedback-${Date.now().toString(36)}`);
+  await page.getByLabel("Como você quer aparecer?").fill("Feedback");
+  await page.getByRole("button", { name: "Entrar na arena" }).click();
+  const audio = page.getByRole("button", { name: "Ativar sons" });
+  await expect(audio).toHaveAttribute("aria-pressed", "false");
+  await audio.click();
+  await expect(page.getByRole("button", { name: "Desativar sons" })).toHaveAttribute("aria-pressed", "true");
+  publish!(40003, true);
+  await page.waitForTimeout(400);
+  publish!(40003, true);
+  await expect(page.locator(".mass-gain")).toContainText("+3 massa");
+  publish!(0, false);
+  await expect(page.getByLabel("Resumo da rodada")).toContainText("40.003");
+  await expect(page.getByLabel("Resumo da rodada")).toContainText("1:27");
+  await expect(page.getByLabel("Resumo da rodada")).toContainText("42.000");
+  const viewport = page.viewportSize()!;
+  for (const [width, height] of [[360,800],[390,844],[412,915],[768,1024],[1440,900]]) {
+    await page.setViewportSize({ width, height });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    const bounds = await page.getByLabel("Fim da vida").boundingBox();
+    expect(bounds!.y).toBeGreaterThanOrEqual(0);
+    expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(height);
+  }
+  await page.setViewportSize(viewport);
+  await page.screenshot({ path: `artifacts/fixture-summary-${info.project.name}.png` });
+  expect(errors).toEqual([]);
+});
 test("ações mostram a massa individual exigida após dividir", async ({
   page,
 }) => {

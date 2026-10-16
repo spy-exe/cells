@@ -60,6 +60,10 @@ type Player struct {
 	Team                     uint8
 	Kills, Deaths            int
 	Peak                     float64
+	HasRun                   bool
+	RunBorn                  uint64
+	RunPeak                  float64
+	RunKills                 int
 	TargetX, TargetY         float64
 	Actions                  uint8
 	SplitAt, EjectAt, DiedAt uint64
@@ -180,6 +184,10 @@ func (w *World) spawn(id uint32) {
 	}
 	p := w.Player(id)
 	p.Alive = true
+	p.HasRun = true
+	p.RunBorn = w.Tick
+	p.RunPeak = SpawnMass
+	p.RunKills = 0
 	p.Actions = 0
 	p.TargetX = x
 	p.TargetY = y
@@ -208,6 +216,7 @@ func (w *World) Spectate(id uint32) {
 	if p := w.Player(id); p != nil {
 		p.Alive = false
 		p.DiedAt = w.Tick
+		p.HasRun = false
 	}
 }
 func (w *World) RemovePlayer(id uint32) {
@@ -382,6 +391,7 @@ func (w *World) Step() {
 		p := &w.Players[i]
 		mass := masses[p.ID]
 		p.Peak = max(p.Peak, mass)
+		p.RunPeak = max(p.RunPeak, mass)
 		if p.Alive && mass == 0 {
 			p.Alive = false
 			p.Deaths++
@@ -532,6 +542,7 @@ func (w *World) consume() {
 			if kind == Cell && w.Mass(owner) == 0 {
 				if p := w.Player(a.Owner); p != nil {
 					p.Kills++
+					p.RunKills++
 				}
 			}
 			if kind == Virus {

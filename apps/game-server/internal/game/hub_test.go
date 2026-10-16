@@ -2,12 +2,84 @@ package game
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"github.com/spy-exe/cells/apps/game-server/internal/bot"
 	"github.com/spy-exe/cells/apps/game-server/internal/store"
 	"sync"
 	"testing"
 	"time"
 )
+
+type memoryCheckpoint struct{ rooms []store.SavedRoom }
+
+func TestRunSummaryUsesPrivateIdentityAndFreezesAtDeath(t *testing.T) {
+	h := New(nil, 1600)
+	a, _ := h.Join(store.Session{Hash: "private-a", Nickname: "A", Mode: "classic", Room: "summary"}, nil)
+	b, _ := h.Join(store.Session{Hash: "private-b", Nickname: "B", Mode: "classic", Room: "summary"}, nil)
+	r := h.rooms[a.Room]
+	r.World.Tick = 300
+	pa, pb := r.World.Player(a.Player), r.World.Player(b.Player)
+	pa.RunPeak = 333
+	pa.Peak = 400
+	pa.RunBorn = 30
+	pa.DiedAt = 240
+	pa.Alive = false
+	pa.RunKills = 2
+	pb.RunPeak = 888
+	pb.Peak = 900
+	result, ok := h.RunSummary("private-a")
+	if !ok || result.Peak != 333 || result.Record != 400 || result.Kills != 2 || result.Seconds != 7 || result.Alive {
+		t.Fatal("private run", result)
+	}
+	r.World.Tick = 600
+	frozen, _ := h.RunSummary("private-a")
+	if frozen != result {
+		t.Fatal("dead run kept accumulating survival", frozen)
+	}
+	if other, _ := h.RunSummary("private-b"); other.Peak != 888 {
+		t.Fatal("shared records", other)
+	}
+	if _, ok = h.RunSummary("unknown"); ok {
+		t.Fatal("unknown identity saw records")
+	}
+}
+
+func (m *memoryCheckpoint) LoadRooms(context.Context) ([]store.SavedRoom, error) { return m.rooms, nil }
+func (m *memoryCheckpoint) SaveRooms(_ context.Context, r []store.SavedRoom) error {
+	m.rooms = r
+	return nil
+}
+func TestGoalMemorySurvivesCheckpointAndDoesNotAlias(t *testing.T) {
+	backend := &memoryCheckpoint{}
+	h := New(backend, 1600)
+	p, err := h.Join(store.Session{Hash: "checkpoint-player", Nickname: "Player", Mode: "arena", Profile: "balanced"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	memory := &bot.Memory{Seen: map[uint32]bot.Track{9: {X: 12}}, GoalID: 9, GoalUntil: 45}
+	h.rooms[p.Room].Memories[p.Player] = memory
+	if err = h.Save(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	memory.GoalID = 0
+	memory.Seen[9] = bot.Track{X: 99}
+	var saved Room
+	if err = json.Unmarshal(backend.rooms[0].Data, &saved); err != nil {
+		t.Fatal(err)
+	}
+	got := saved.Memories[p.Player]
+	if got.GoalID != 9 || got.GoalUntil != 45 || got.Seen[9].X != 12 {
+		t.Fatal("checkpoint lost goal or shared mutable memory", got)
+	}
+	restored := New(backend, 1600)
+	if err = restored.Load(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if restored.rooms[p.Room].Memories[p.Player].GoalID != 9 {
+		t.Fatal("restored goal missing")
+	}
+}
 
 func TestMatchmakingReservesDisconnectedIdentities(t *testing.T) {
 	h := New(nil, 1600)

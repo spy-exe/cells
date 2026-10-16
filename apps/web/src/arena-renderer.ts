@@ -10,7 +10,7 @@ import {
   Text,
   Texture,
 } from "pixi.js";
-import { MotionTimeline, virusPoints } from "./motion";
+import { MotionTimeline, virusPoints, cellDeformation } from "./motion";
 import type { Snapshot } from "../../../packages/protocol/game";
 
 const palette = [
@@ -24,6 +24,8 @@ interface View {
   retiring: number;
   own: boolean;
   label: Text | null;
+  x: number; y: number; at: number; speed: number; angle: number;
+  mass: number; impulseAt: number;
 }
 export class ArenaRenderer {
   private renderer!: WebGLRenderer;
@@ -215,6 +217,8 @@ export class ArenaRenderer {
           born: now,
           retiring: 0,
           own: e.owner === s.self && e.kind === 2,
+          x: e.x, y: e.y, at: now, speed: 0, angle: 0,
+          mass: e.mass, impulseAt: now,
         };
         this.views.set(e.id, v);
       }
@@ -236,7 +240,20 @@ export class ArenaRenderer {
           : 1;
       const r = v.radius * bornScale * pulse;
       v.sprite.position.set(x, y);
-      if (v.sprite instanceof Graphics) v.sprite.scale.set(r / 256);
+      if (v.sprite instanceof Graphics) {
+        const dt = Math.max(1, now - v.at), dx = x - v.x, dy = y - v.y;
+        const speed = Math.hypot(dx, dy) * 1000 / dt;
+        v.speed += (speed - v.speed) * (1 - Math.exp(-dt / 90));
+        if (speed > 5) {
+          const next = Math.atan2(dy, dx), delta = Math.atan2(Math.sin(next - v.angle), Math.cos(next - v.angle));
+          v.angle += delta * (1 - Math.exp(-dt / 75));
+        }
+        if (e.mass > v.mass * 1.02) v.impulseAt = now;
+        v.mass = e.mass; v.x = x; v.y = y; v.at = now;
+        const shape = cellDeformation(v.speed, now - v.impulseAt, reduced);
+        v.sprite.rotation = v.angle;
+        v.sprite.scale.set(r / 256 * shape.x, r / 256 * shape.y);
+      }
       else {
         v.sprite.width = r * 2;
         v.sprite.height = r * 2;

@@ -1,5 +1,5 @@
 import { it, expect } from "vitest";
-import { MotionTimeline, virusPoints } from "../../apps/web/src/motion";
+import { MotionTimeline, virusPoints, cellDeformation, GrowthFeedback } from "../../apps/web/src/motion";
 import type { Snapshot } from "../../packages/protocol/game";
 const sample = (tick: number, x: number, received: number) =>
   ({
@@ -67,4 +67,26 @@ it("draws 48 actual virus tips with alternating inner vertices", () => {
   expect(p).toHaveLength(192);
   expect(p[0]).toBe(127);
   expect(p[1]).toBe(64);
+});
+it("bounds cell deformation, preserves area and honors reduced motion", () => {
+  for (const speed of [0, 220, 1050, 10000]) {
+    for (const elapsed of [0, 60, 140, 300, 1000]) {
+      const shape = cellDeformation(speed, elapsed, false);
+      expect(shape.x).toBeGreaterThanOrEqual(.94);
+      expect(shape.x).toBeLessThanOrEqual(1.065);
+      expect(shape.x * shape.y).toBeCloseTo(1, 10);
+    }
+  }
+  expect(cellDeformation(1050, 60, true)).toEqual({ x: 1, y: 1 });
+});
+it("reports real mass gains in batches without counting split, decay or respawn", () => {
+  const gains = new GrowthFeedback();
+  expect(gains.update(36, true, 0)).toBeNull();
+  expect(gains.update(35.999, true, 10)).toBeNull();
+  expect(gains.update(37, true, 50)).toBeNull();
+  expect(gains.update(39, true, 200)).toBeNull();
+  expect(gains.update(39, true, 430)?.amount).toBe(3);
+  expect(gains.update(39, true, 460)).toBeNull();
+  expect(gains.update(0, false, 500)).toBeNull();
+  expect(gains.update(36, true, 550)).toBeNull();
 });

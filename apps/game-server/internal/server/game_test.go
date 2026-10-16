@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"github.com/coder/websocket"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/spy-exe/cells/apps/game-server/internal/game"
@@ -90,6 +91,26 @@ func TestGuestOriginValidationAndMultiplayer(t *testing.T) {
 	}
 	if string(ba[7:11]) == string(bb[7:11]) {
 		t.Fatal("shared player identity")
+	}
+	unauthorized, err := http.Get(ts.URL + "/api/run")
+	if err != nil {
+		t.Fatal(err)
+	}
+	unauthorized.Body.Close()
+	if unauthorized.StatusCode != 401 {
+		t.Fatal("run leaked without a session", unauthorized.StatusCode)
+	}
+	req, _ := http.NewRequest("GET", ts.URL+"/api/run?player=someone-else", nil)
+	req.AddCookie(a.Cookies()[0])
+	runResponse, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var run game.RunSummary
+	err = json.NewDecoder(runResponse.Body).Decode(&run)
+	runResponse.Body.Close()
+	if err != nil || runResponse.StatusCode != 200 || !run.HasRun || !run.Alive || run.Peak < 36 || runResponse.Header.Get("Cache-Control") != "no-store" {
+		t.Fatal("own authoritative run summary", run, err)
 	}
 	if err := ca.Write(ctx, websocket.MessageBinary, []byte{206, 2, 1}); err != nil {
 		t.Fatal(err)

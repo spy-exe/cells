@@ -12,7 +12,11 @@ type Track struct {
 	X, Y, VX, VY float64
 	Tick         uint64
 }
-type Memory struct{ Seen map[uint32]Track }
+type Memory struct {
+	Seen      map[uint32]Track
+	GoalID    uint32
+	GoalUntil uint64
+}
 type Intent struct {
 	X, Y    float64
 	Actions uint8
@@ -117,6 +121,7 @@ func Decide(o engine.Observation, m *Memory, profile string) Intent {
 		}
 	}
 	if danger {
+		m.GoalID = 0
 		bestScore := -math.MaxFloat64
 		best := idle
 		best.Reason = "flee"
@@ -160,6 +165,7 @@ func Decide(o engine.Observation, m *Memory, profile string) Intent {
 	}
 	bestScore := 0.
 	best := idle
+	goal := uint32(0)
 	for _, e := range o.Entities {
 		if e.Kind != engine.Food && e.Kind != engine.Ejected {
 			continue
@@ -171,8 +177,14 @@ func Decide(o engine.Observation, m *Memory, profile string) Intent {
 				score *= .05
 			}
 		}
+		// Keep an almost equivalent visible food goal for at most 1.5 seconds.
+		// Threat penalties still dominate; richer food can immediately replace it.
+		if e.ID == m.GoalID && o.Tick < m.GoalUntil {
+			score /= .86
+		}
 		if score > bestScore {
 			bestScore = score
+			goal = e.ID
 			best = Intent{X: e.X, Y: e.Y, Reason: "forage"}
 		}
 	}
@@ -200,6 +212,7 @@ func Decide(o engine.Observation, m *Memory, profile string) Intent {
 			continue
 		}
 		bestScore = score
+		goal = 0
 		t := m.Seen[e.ID]
 		best = Intent{X: e.X + t.VX*.3, Y: e.Y + t.VY*.3, Reason: "hunt"}
 		if profile != "beginner" && profile != "cautious" && !unsafe && o.SplitIn == 0 && own < 8 && big.Mass/2 > e.Mass*1.35 && d < engine.Radius(big.Mass)+260 && d > engine.Radius(big.Mass)*.7 {
@@ -251,5 +264,12 @@ func Decide(o engine.Observation, m *Memory, profile string) Intent {
 	}
 	best.X = math.Max(0, math.Min(o.Size, best.X))
 	best.Y = math.Max(0, math.Min(o.Size, best.Y))
+	if best.Reason != "forage" {
+		goal = 0
+	}
+	if goal != m.GoalID || o.Tick >= m.GoalUntil {
+		m.GoalUntil = o.Tick + 45
+	}
+	m.GoalID = goal
 	return best
 }

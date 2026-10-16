@@ -111,3 +111,37 @@ export function virusPoints(tips = 48): number[] {
   }
   return p;
 }
+
+export function cellDeformation(speed: number, impulseAge: number, reduced: boolean) {
+  if (reduced) return { x: 1, y: 1 };
+  const age = Math.max(0, impulseAge);
+  const bounce = age < 700 ? Math.sin(age * Math.PI / 160) * Math.exp(-age / 160) * .04 : 0;
+  const x = Math.max(.94, Math.min(1.065, 1 + Math.min(.04, Math.max(0, speed) / 18000) + bounce));
+  return { x, y: 1 / x };
+}
+
+export class GrowthFeedback {
+  private mass: number | null = null;
+  private amount = 0;
+  private started = 0;
+  private sequence = 0;
+  update(mass: number, alive: boolean, now: number): { amount: number; sequence: number } | null {
+    if (!alive || this.mass === null) {
+      this.mass = alive ? mass : null;
+      this.amount = 0;
+      return null;
+    }
+    const gain = mass - this.mass;
+    this.mass = mass;
+    if (gain > .05) {
+      if (!this.amount) this.started = now;
+      this.amount += gain;
+    }
+    if (this.amount >= .8 && now - this.started >= 350) {
+      const amount = Math.round(this.amount);
+      this.amount = 0;
+      return { amount, sequence: ++this.sequence };
+    }
+    return null;
+  }
+}

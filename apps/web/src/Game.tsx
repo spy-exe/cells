@@ -7,6 +7,7 @@ import {
   Maximize,
   Wifi,
   RotateCcw,
+  Volume2, VolumeX,
 } from "lucide-react";
 import {
   controlFrame,
@@ -15,6 +16,8 @@ import {
   type Snapshot,
 } from "../../../packages/protocol/game";
 import { ArenaRenderer } from "./arena-renderer";
+import { GrowthFeedback } from "./motion";
+import { GameSound } from "./sound";
 
 interface Props {
   nickname: string;
@@ -36,6 +39,10 @@ export function Game({ nickname, mode, onLeave }: Props) {
     ejectHeld = useRef(false),
     lastKeyAction = useRef(0);
   const [feedback, setFeedback] = useState({ kind: 0, seq: 0 });
+  const growth = useRef(new GrowthFeedback()), sound = useRef(new GameSound());
+  const [gain, setGain] = useState<{ amount: number; sequence: number } | null>(null);
+  const [audio, setAudio] = useState(false);
+  const [run, setRun] = useState<{ has_run: boolean; alive: boolean; peak: number; record: number; kills: number; seconds: number } | null>(null);
   const requestAction = (kind: number) => {
     const s = latest.current;
     if (!s?.alive) return;
@@ -106,6 +113,16 @@ export function Game({ nickname, mode, onLeave }: Props) {
             return;
           }
           const s = decodeSnapshot(b);
+          const previous = latest.current;
+          if (previous?.alive && !s.alive) sound.current.play("death");
+          if (previous?.alive && s.alive) {
+            const beforeCells = previous.entities.filter(e => e.kind === 2 && e.owner === previous.self).length;
+            const afterCells = s.entities.filter(e => e.kind === 2 && e.owner === s.self).length;
+            if (afterCells > beforeCells && s.splitIn > 0) sound.current.play("split");
+            if (s.mass < previous.mass - 10 && s.ejectIn > 0) sound.current.play("eject");
+          }
+          const acquired = growth.current.update(s.mass, s.alive, performance.now());
+          if (acquired) { setGain(acquired); sound.current.play("gain"); }
           latest.current = s;
           renderer.current?.update(s);
           setSnapshot(s);
@@ -177,6 +194,18 @@ export function Game({ nickname, mode, onLeave }: Props) {
       socket.current?.close(1000);
     };
   }, [retry]);
+  useEffect(() => () => sound.current.destroy(), []);
+  useEffect(() => {
+    if (!snapshot || snapshot.alive) { setRun(null); return; }
+    const controller = new AbortController();
+    void fetch("/api/run", { signal: controller.signal })
+      .then(async response => {
+        if (!response.ok) return;
+        const value = await response.json();
+        if (value.has_run && !value.alive && [value.peak, value.record, value.kills, value.seconds].every(Number.isFinite)) setRun(value);
+      }).catch(() => {});
+    return () => controller.abort();
+  }, [snapshot?.alive]);
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       if (
@@ -186,6 +215,9 @@ export function Game({ nickname, mode, onLeave }: Props) {
       )
         return;
       const key = e.key.toLowerCase();
+      if (key === "r" && !e.repeat && latest.current && !latest.current.alive && latest.current.respawnIn === 0) {
+        aim.current = null; socket.current?.send(controlFrame(3)); return;
+      }
       if (e.target instanceof HTMLButtonElement && key === " ") return;
       if (key.startsWith("arrow") || key === " " || key === "w")
         e.preventDefault();
@@ -265,6 +297,13 @@ export function Game({ nickname, mode, onLeave }: Props) {
               ? "Teams"
               : "Classic FFA"}
         </span>
+        <button className="icon-button sound-control" aria-label={audio ? "Desativar sons" : "Ativar sons"}
+          aria-pressed={audio} onClick={() => {
+            if (audio) { sound.current.enabled = false; setAudio(false); }
+            else void sound.current.enable().then(() => setAudio(true)).catch(() => setAudio(false));
+          }}>
+          {audio ? <Volume2 size={18} /> : <VolumeX size={18} />}
+        </button>
         <label className="quality-control">
           <span>Gráficos</span>
           <select
@@ -283,6 +322,7 @@ export function Game({ nickname, mode, onLeave }: Props) {
           {Math.floor(snapshot?.mass ?? 0).toLocaleString("pt-BR")}
         </strong>
         <p>{nickname}</p>
+        {gain && <span key={gain.sequence} className="mass-gain" aria-hidden="true">+{gain.amount.toLocaleString("pt-BR")} massa</span>}
         <small data-testid="position">
           {snapshot
             ? `${Math.round(snapshot.x)} : ${Math.round(snapshot.y)}`
@@ -436,6 +476,12 @@ export function Game({ nickname, mode, onLeave }: Props) {
               ? "Você está acompanhando a liderança. Escolha sua próxima tentativa."
               : "Conectando à simulação em tempo real."}
           </p>
+          {run && <dl className="run-summary" aria-label="Resumo da rodada">
+            <div><dt>Pico de massa</dt><dd>{Math.floor(run.peak).toLocaleString("pt-BR")}</dd></div>
+            <div><dt>Sobreviveu</dt><dd>{Math.floor(run.seconds / 60)}:{String(Math.floor(run.seconds % 60)).padStart(2, "0")}</dd></div>
+            <div><dt>Eliminações</dt><dd>{run.kills}</dd></div>
+            <div><dt>Recorde da sessão</dt><dd>{Math.floor(run.record).toLocaleString("pt-BR")}</dd></div>
+          </dl>}
           {snapshot && (
             <>
               <button
@@ -451,6 +497,7 @@ export function Game({ nickname, mode, onLeave }: Props) {
                   ? `Respawn em ${Math.ceil(snapshot.respawnIn / 30)} s`
                   : "Voltar à arena"}
               </button>
+              <small className="respawn-hint">R para recomeçar</small>
               <button className="text-button" onClick={onLeave}>
                 Voltar ao menu
               </button>

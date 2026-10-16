@@ -151,6 +151,23 @@ func (s *Server) routes(mux *http.ServeMux) {
 		}
 		writeJSON(w, 200, map[string]string{"nickname": v.Nickname, "mode": v.Mode, "room": v.Room})
 	})
+	mux.HandleFunc("GET /api/run", func(w http.ResponseWriter, r *http.Request) {
+		v, err := s.session(r)
+		if err != nil {
+			writeJSON(w, 401, map[string]string{"error": "Sessão encerrada."})
+			return
+		}
+		if !s.limits.allow("run:"+v.Hash, 60, time.Minute) {
+			writeJSON(w, 429, map[string]string{"error": "Aguarde um momento."})
+			return
+		}
+		summary, ok := s.config.Hub.RunSummary(v.Hash)
+		if !ok {
+			writeJSON(w, 404, map[string]string{"error": "Partida não encontrada."})
+			return
+		}
+		writeJSON(w, 200, summary)
+	})
 	mux.HandleFunc("POST /api/logout", func(w http.ResponseWriter, r *http.Request) {
 		if !s.origin(w, r) {
 			return

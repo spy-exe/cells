@@ -6,6 +6,53 @@ import (
 	"testing"
 )
 
+func TestRunSummaryResetsAtRespawnWhileRecordsRemain(t *testing.T) {
+	w := New(17, Config{Size: 1600, Mode: Classic})
+	id := w.AddPlayer("Runner", false, "")
+	p := w.Player(id)
+	if !p.HasRun || p.RunBorn != 0 || p.RunPeak != SpawnMass {
+		t.Fatal("spawn summary", p)
+	}
+	for i := range w.Entities {
+		if w.Entities[i].Owner == id {
+			w.Entities[i].Mass = 100
+			w.Sources += 64
+		}
+	}
+	w.Step()
+	p = w.Player(id)
+	if p.RunPeak < 99 || p.Peak < 99 {
+		t.Fatal("growth record missing", p)
+	}
+	for i := range w.Entities {
+		if w.Entities[i].Owner == id {
+			w.Sinks += w.Entities[i].Mass
+			w.Entities[i].Mass = 0
+		}
+	}
+	w.Step()
+	if p.Alive {
+		t.Fatal("missing death")
+	}
+	peak := p.RunPeak
+	for range 61 {
+		w.Step()
+	}
+	if p.RunPeak != peak {
+		t.Fatal("death record changed")
+	}
+	if err := w.Respawn(id); err != nil {
+		t.Fatal(err)
+	}
+	p = w.Player(id)
+	if p.RunBorn != w.Tick || p.RunPeak != SpawnMass || p.Peak < 99 || p.RunKills != 0 {
+		t.Fatal("run reset corrupted record", p)
+	}
+	if err := w.Valid(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func empty() *World { return New(7, Config{Size: 1600, Mode: Classic}) }
 func place(w *World, id uint32, x, y, mass float64) {
 	for i := range w.Entities {
