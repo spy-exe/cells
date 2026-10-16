@@ -102,7 +102,7 @@ func (h *Hub) Join(s store.Session, c *websocket.Conn) (*Peer, error) {
 		for i := 0; i < 16; i++ {
 			candidate := fmt.Sprintf("%s-%s-public-%d", s.Mode, matchmakingProfile, i)
 			r := h.rooms[candidate]
-			if r == nil || len(r.Peers) < 16 {
+			if r == nil || len(r.Identities) < 16 {
 				key = candidate
 				break
 			}
