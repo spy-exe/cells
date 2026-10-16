@@ -3,7 +3,11 @@ package game
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"runtime"
+	"strconv"
+	"strings"
+	"syscall"
 )
 
 // Metrics is exposed only on the private metrics listener, never the public mux.
@@ -19,4 +23,18 @@ func (h *Hub) Metrics(w http.ResponseWriter, r *http.Request) {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 	fmt.Fprintf(w, "# TYPE cells_heap_bytes gauge\ncells_heap_bytes %d\n# TYPE cells_goroutines gauge\ncells_goroutines %d\n", m.Alloc, runtime.NumGoroutine())
+	var usage syscall.Rusage
+	if syscall.Getrusage(syscall.RUSAGE_SELF, &usage) == nil {
+		seconds := float64(usage.Utime.Sec+usage.Stime.Sec) + float64(usage.Utime.Usec+usage.Stime.Usec)/1e6
+		fmt.Fprintf(w, "# TYPE process_cpu_seconds_total counter\nprocess_cpu_seconds_total %f\n", seconds)
+	}
+	if data, err := os.ReadFile("/proc/self/statm"); err == nil {
+		fields := strings.Fields(string(data))
+		if len(fields) > 1 {
+			pages, err := strconv.ParseUint(fields[1], 10, 64)
+			if err == nil {
+				fmt.Fprintf(w, "# TYPE process_resident_memory_bytes gauge\nprocess_resident_memory_bytes %d\n", pages*uint64(os.Getpagesize()))
+			}
+		}
+	}
 }

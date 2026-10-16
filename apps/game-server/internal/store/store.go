@@ -11,7 +11,10 @@ import (
 )
 
 type Store struct{ Pool *pgxpool.Pool }
-type Session struct{ Hash, ID, Nickname, Mode, Room, Profile string }
+type Session struct {
+	Hash, ID, Nickname, Mode, Room, Profile string
+	Spectator                               bool
+}
 type SavedRoom struct {
 	Key  string
 	Data json.RawMessage
@@ -26,10 +29,12 @@ CREATE TABLE IF NOT EXISTS guest_sessions (
  created_at timestamptz NOT NULL DEFAULT now(), expires_at timestamptz NOT NULL,
  peak double precision NOT NULL DEFAULT 0, kills integer NOT NULL DEFAULT 0, deaths integer NOT NULL DEFAULT 0
 );
+ALTER TABLE guest_sessions ADD COLUMN IF NOT EXISTS spectator boolean NOT NULL DEFAULT false;
+UPDATE guest_sessions SET spectator=true,profile='balanced' WHERE profile='spectator';
 CREATE INDEX IF NOT EXISTS guest_sessions_expiry ON guest_sessions(expires_at);
 CREATE TABLE IF NOT EXISTS game_rooms (key text PRIMARY KEY, version integer NOT NULL, state jsonb NOT NULL, updated_at timestamptz NOT NULL DEFAULT now());
 CREATE TABLE IF NOT EXISTS cells_schema (version integer PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now());
-INSERT INTO cells_schema(version) VALUES(2) ON CONFLICT DO NOTHING;
+INSERT INTO cells_schema(version) VALUES(2),(3) ON CONFLICT DO NOTHING;
 COMMIT;`)
 	return err
 }
@@ -42,7 +47,7 @@ func randomToken() (string, error) {
 	_, err := rand.Read(b)
 	return hex.EncodeToString(b), err
 }
-func (s *Store) Create(ctx context.Context, nick, mode, room, profile string) (Session, string, error) {
+func (s *Store) Create(ctx context.Context, nick, mode, room, profile string, spectator ...bool) (Session, string, error) {
 	token, err := randomToken()
 	if err != nil {
 		return Session{}, "", err
@@ -51,13 +56,14 @@ func (s *Store) Create(ctx context.Context, nick, mode, room, profile string) (S
 	if err != nil {
 		return Session{}, "", err
 	}
-	session := Session{Hash: Hash(token), ID: id[:24], Nickname: nick, Mode: mode, Room: room, Profile: profile}
-	_, err = s.Pool.Exec(ctx, `INSERT INTO guest_sessions(token_hash,id,nickname,mode,room,profile,expires_at) VALUES($1,$2,$3,$4,$5,$6,$7)`, session.Hash, session.ID, nick, mode, room, profile, time.Now().Add(30*24*time.Hour))
+	watch := len(spectator) > 0 && spectator[0]
+	session := Session{Spectator: watch, Hash: Hash(token), ID: id[:24], Nickname: nick, Mode: mode, Room: room, Profile: profile}
+	_, err = s.Pool.Exec(ctx, `INSERT INTO guest_sessions(token_hash,id,nickname,mode,room,profile,expires_at,spectator) VALUES($1,$2,$3,$4,$5,$6,$7,$8)`, session.Hash, session.ID, nick, mode, room, profile, time.Now().Add(30*24*time.Hour), watch)
 	return session, token, err
 }
 func (s *Store) Session(ctx context.Context, token string) (Session, error) {
 	var v Session
-	err := s.Pool.QueryRow(ctx, `SELECT token_hash,id,nickname,mode,room,profile FROM guest_sessions WHERE token_hash=$1 AND expires_at>now()`, Hash(token)).Scan(&v.Hash, &v.ID, &v.Nickname, &v.Mode, &v.Room, &v.Profile)
+	err := s.Pool.QueryRow(ctx, `SELECT token_hash,id,nickname,mode,room,profile,spectator FROM guest_sessions WHERE token_hash=$1 AND expires_at>now()`, Hash(token)).Scan(&v.Hash, &v.ID, &v.Nickname, &v.Mode, &v.Room, &v.Profile, &v.Spectator)
 	return v, err
 }
 func (s *Store) Delete(ctx context.Context, hash string) error {

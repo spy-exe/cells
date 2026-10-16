@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/coder/websocket"
+	"github.com/spy-exe/cells/apps/game-server/internal/bot"
 	"github.com/spy-exe/cells/apps/game-server/internal/store"
 	"io"
 	"net"
@@ -115,7 +116,7 @@ func (s *Server) routes(mux *http.ServeMux) {
 			return
 		}
 		input.Nickname = strings.TrimSpace(input.Nickname)
-		if !nickname(input.Nickname) || input.Mode != "classic" || len(input.Room) > 32 {
+		if !nickname(input.Nickname) || (input.Mode != "classic" && input.Mode != "arena") || len(input.Room) > 32 {
 			writeJSON(w, 400, map[string]string{"error": "Use um apelido de 2 a 20 caracteres e um modo disponível."})
 			return
 		}
@@ -125,11 +126,16 @@ func (s *Server) routes(mux *http.ServeMux) {
 				return
 			}
 		}
-		profile := "balanced"
-		if input.Spectate {
-			profile = "spectator"
+		profile := input.Profile
+		if profile == "" {
+			profile = "balanced"
 		}
-		v, token, err := s.config.Store.Create(r.Context(), input.Nickname, input.Mode, input.Room, profile)
+		if !bot.ValidProfile(profile) {
+			writeJSON(w, 400, map[string]string{"error": "Perfil de bot inválido."})
+			return
+		}
+
+		v, token, err := s.config.Store.Create(r.Context(), input.Nickname, input.Mode, input.Room, profile, input.Spectate)
 		if err != nil {
 			writeJSON(w, 503, map[string]string{"error": "Não foi possível abrir a sessão."})
 			return

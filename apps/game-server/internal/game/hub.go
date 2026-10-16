@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/coder/websocket"
+	"github.com/spy-exe/cells/apps/game-server/internal/bot"
 	"github.com/spy-exe/cells/apps/game-server/internal/engine"
 	"github.com/spy-exe/cells/apps/game-server/internal/protocol"
 	"github.com/spy-exe/cells/apps/game-server/internal/store"
@@ -31,6 +32,7 @@ type Room struct {
 	Identities map[string]uint32
 	Absent     map[uint32]time.Time
 	Peers      map[uint32]*Peer `json:"-"`
+	Memories   map[uint32]*bot.Memory
 }
 type Hub struct {
 	mu                              sync.Mutex
@@ -60,6 +62,9 @@ func (h *Hub) Load(ctx context.Context) error {
 			return fmt.Errorf("invalid room checkpoint %s", v.Key)
 		}
 		r.Peers = map[uint32]*Peer{}
+		if r.Memories == nil {
+			r.Memories = map[uint32]*bot.Memory{}
+		}
 		r.Absent = map[uint32]time.Time{}
 		for _, p := range r.World.Players {
 			if !p.Bot {
@@ -77,6 +82,10 @@ func (h *Hub) Join(s store.Session, c *websocket.Conn) (*Peer, error) {
 		return nil, errors.New("server restarting")
 	}
 	key := ""
+	matchmakingProfile := "mixed"
+	if s.Mode == engine.Arena {
+		matchmakingProfile = s.Profile
+	}
 	for _, k := range h.keys() {
 		r := h.rooms[k]
 		if r.World.Config.Mode == s.Mode {
@@ -91,7 +100,7 @@ func (h *Hub) Join(s store.Session, c *websocket.Conn) (*Peer, error) {
 	}
 	if key == "" {
 		for i := 0; i < 16; i++ {
-			candidate := fmt.Sprintf("%s-public-%d", s.Mode, i)
+			candidate := fmt.Sprintf("%s-%s-public-%d", s.Mode, matchmakingProfile, i)
 			r := h.rooms[candidate]
 			if r == nil || len(r.Peers) < 16 {
 				key = candidate
@@ -117,7 +126,19 @@ func (h *Hub) Join(s store.Session, c *websocket.Conn) (*Peer, error) {
 			cfg.Food = 900
 			cfg.Viruses = 8
 		}
-		r = &Room{World: engine.New(binary.LittleEndian.Uint64(seed[:]), cfg), Identities: map[string]uint32{}, Absent: map[uint32]time.Time{}, Peers: map[uint32]*Peer{}}
+		r = &Room{World: engine.New(binary.LittleEndian.Uint64(seed[:]), cfg), Identities: map[string]uint32{}, Absent: map[uint32]time.Time{}, Peers: map[uint32]*Peer{}, Memories: map[uint32]*bot.Memory{}}
+		// Private Classic rooms stay human-only, making friend sessions and public
+		// validation independent of bot interference. AI Arena always has agents.
+		if s.Room == "" || s.Mode == engine.Arena {
+			names := []string{"Mica", "Nori", "Vértice", "Órbita", "Talo", "Nimbo", "Coral", "Pingo"}
+			for i, name := range names {
+				profile := bot.Profiles[i%len(bot.Profiles)]
+				if s.Mode == engine.Arena && bot.ValidProfile(s.Profile) {
+					profile = s.Profile
+				}
+				r.World.AddPlayer(name, true, profile)
+			}
+		}
 		h.rooms[key] = r
 	}
 	if len(r.Peers) >= 32 {
@@ -127,7 +148,7 @@ func (h *Hub) Join(s store.Session, c *websocket.Conn) (*Peer, error) {
 	if !ok {
 		id = r.World.AddPlayer(s.Nickname, false, "")
 		r.Identities[s.Hash] = id
-		if s.Profile == "spectator" {
+		if s.Spectator || s.Profile == "spectator" {
 			r.World.Spectate(id)
 		}
 	}
@@ -256,6 +277,26 @@ func (h *Hub) Run(ctx context.Context) {
 			h.mu.Lock()
 			for _, key := range h.keys() {
 				r := h.rooms[key]
+				if r.World.Tick%6 == 0 {
+					for _, player := range r.World.Players {
+						if !player.Bot {
+							continue
+						}
+						if !player.Alive {
+							if r.World.Tick > player.DiedAt+90 {
+								_ = r.World.Respawn(player.ID)
+							}
+							continue
+						}
+						memory := r.Memories[player.ID]
+						if memory == nil {
+							memory = &bot.Memory{}
+							r.Memories[player.ID] = memory
+						}
+						intent := bot.Decide(r.World.Observe(player.ID), memory, player.Profile)
+						_ = r.World.Input(player.ID, intent.X, intent.Y, intent.Actions)
+					}
+				}
 				for id, until := range r.Absent {
 					if time.Now().After(until) {
 						r.World.RemovePlayer(id)

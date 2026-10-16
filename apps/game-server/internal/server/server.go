@@ -54,7 +54,7 @@ func (s *Server) Handler() http.Handler {
 		modes := []string{}
 		players, bots := any(0), any(0)
 		if s.config.Hub != nil {
-			modes = []string{"classic"}
+			modes = []string{"classic", "arena"}
 			stats := s.config.Hub.Stats()
 			players = stats["players"]
 			bots = stats["bots"]
