@@ -5,12 +5,13 @@ import {
   WebGLRenderer,
   Container,
   Graphics,
-  GraphicsContext,
+  MeshSimple,
   Sprite,
   Text,
   Texture,
 } from "pixi.js";
 import { MotionTimeline, virusPoints, cellDeformation } from "./motion";
+import { entityDepth, membraneGeometry, updateMembrane, absorptionPose, detectAbsorptions, cellCaption } from "./organic";
 import type { Snapshot } from "../../../packages/protocol/game";
 
 const palette = [
@@ -18,7 +19,7 @@ const palette = [
   0xb2b557,
 ];
 interface View {
-  sprite: Sprite | Graphics;
+  sprite: Sprite | MeshSimple;
   radius: number;
   born: number;
   retiring: number;
@@ -26,6 +27,8 @@ interface View {
   label: Text | null;
   x: number; y: number; at: number; speed: number; angle: number;
   mass: number; impulseAt: number;
+  membraneAt: number;
+  reduced?: boolean;
 }
 export class ArenaRenderer {
   private renderer!: WebGLRenderer;
@@ -38,14 +41,7 @@ export class ArenaRenderer {
   private views = new Map<number, View>();
   private circle: Texture = Texture.EMPTY;
   private virus: Texture = Texture.EMPTY;
-  private cellShape = new GraphicsContext()
-    .poly(
-      Array.from({ length: 256 }, (_, i) => {
-        const a = (i * Math.PI) / 128;
-        return [Math.cos(a) * 256, Math.sin(a) * 256];
-      }).flat(),
-    )
-    .fill(0xffffff);
+  private absorptions = new Map<number, number>();
   private timeline = new MotionTimeline();
   private current: Snapshot | null = null;
 
@@ -93,8 +89,7 @@ export class ArenaRenderer {
     const points = virusPoints();
     const virus = new Graphics()
       .poly(points)
-      .fill(0xffffff)
-      .stroke({ width: 2, color: 0x456f35 });
+      .fill(0xffffff);
     this.virus = this.renderer.generateTexture(virus);
     virus.destroy();
     this.stage.addChild(this.world);
@@ -121,6 +116,9 @@ export class ArenaRenderer {
     this.quality = quality;
   }
   update(snapshot: Snapshot) {
+    if (this.current && this.current.self === snapshot.self && snapshot.tick > this.current.tick) {
+      for (const event of detectAbsorptions(this.current, snapshot)) this.absorptions.set(event.item, event.eater);
+    }
     this.timeline.push(snapshot);
     const first = !this.current || this.current.alive !== snapshot.alive;
     this.current = snapshot;
@@ -135,10 +133,10 @@ export class ArenaRenderer {
     const rect = this.renderer.canvas.getBoundingClientRect();
     return {
       x:
-        (this.current?.x ?? this.camera.x) +
+        this.camera.x +
         (clientX - rect.left - rect.width / 2) / this.camera.scale,
       y:
-        (this.current?.y ?? this.camera.y) +
+        this.camera.y +
         (clientY - rect.top - rect.height / 2) / this.camera.scale,
     };
   }
@@ -187,10 +185,10 @@ export class ArenaRenderer {
       if (!v) {
         const sprite =
           e.kind === 2
-            ? new Graphics({ context: this.cellShape })
+            ? new MeshSimple({ texture: Texture.WHITE, ...membraneGeometry() })
             : new Sprite(e.kind === 4 ? this.virus : this.circle);
         if (sprite instanceof Sprite) sprite.anchor.set(0.5);
-        sprite.zIndex = e.kind === 1 ? 0 : e.kind === 4 ? 2 : 3;
+        else sprite.autoUpdate = false;
         this.world.addChild(sprite);
         const label =
           e.kind === 2
@@ -207,7 +205,6 @@ export class ArenaRenderer {
             : null;
         if (label) {
           label.anchor.set(0.5);
-          label.zIndex = 4;
           this.world.addChild(label);
         }
         v = {
@@ -219,6 +216,7 @@ export class ArenaRenderer {
           own: e.owner === s.self && e.kind === 2,
           x: e.x, y: e.y, at: now, speed: 0, angle: 0,
           mass: e.mass, impulseAt: now,
+          membraneAt: -Infinity,
         };
         this.views.set(e.id, v);
       }
@@ -232,6 +230,8 @@ export class ArenaRenderer {
           ? 1
           : 1 - Math.exp(-1000 / Math.max(1, this.measuredFPS) / 95));
       v.retiring = 0;
+      this.absorptions.delete(e.id);
+      v.sprite.zIndex = entityDepth(e.kind, e.mass);
       const bornScale =
         reduced || e.kind === 1 ? 1 : Math.min(1, 0.82 + (now - v.born) / 650);
       const pulse =
@@ -240,7 +240,7 @@ export class ArenaRenderer {
           : 1;
       const r = v.radius * bornScale * pulse;
       v.sprite.position.set(x, y);
-      if (v.sprite instanceof Graphics) {
+      if (v.sprite instanceof MeshSimple) {
         const dt = Math.max(1, now - v.at), dx = x - v.x, dy = y - v.y;
         const speed = Math.hypot(dx, dy) * 1000 / dt;
         v.speed += (speed - v.speed) * (1 - Math.exp(-dt / 90));
@@ -252,7 +252,13 @@ export class ArenaRenderer {
         v.mass = e.mass; v.x = x; v.y = y; v.at = now;
         const shape = cellDeformation(v.speed, now - v.impulseAt, reduced);
         v.sprite.rotation = v.angle;
-        v.sprite.scale.set(r / 256 * shape.x, r / 256 * shape.y);
+        v.sprite.scale.set(r * shape.x, r * shape.y);
+        if (v.reduced !== reduced || !reduced && now - v.membraneAt >= (this.quality === "low" ? 66 : 16)) {
+          updateMembrane(v.sprite.geometry.positions, e.id, now, now - v.impulseAt, 0, reduced);
+          v.sprite.geometry.getBuffer("aPosition").update();
+          v.membraneAt = now;
+          v.reduced = reduced;
+        }
       }
       else {
         v.sprite.width = r * 2;
@@ -272,26 +278,35 @@ export class ArenaRenderer {
       v.sprite.alpha = 1;
       if (v.label) {
         v.label.alpha = 1;
-        const name = e.name.length > 14 ? `${e.name.slice(0, 13)}…` : e.name;
-        const text = `${name}${e.bot ? " · IA" : ""}`;
+        const {text,font} = cellCaption(e.name,e.bot,r*this.camera.scale);
         if (v.label.text !== text) v.label.text = text;
-        const small = r * this.camera.scale < 42;
-        v.label.position.set(x, small ? y - r - 11 / this.camera.scale : y);
-        // Keep small-body names legible without re-rasterizing text every frame.
-        v.label.scale.set((small ? 0.78 : 1) / this.camera.scale);
-        v.label.visible = r * this.camera.scale > 10 && this.quality !== "low";
+        v.label.position.set(x, y);
+        v.label.zIndex = entityDepth(e.kind, e.mass, true);
+        const width = v.label.getLocalBounds().width;
+        const scale = Math.min(font / 14, Math.max(0, r * this.camera.scale * 2 - 4) / Math.max(1, width));
+        v.label.scale.set(scale / this.camera.scale);
+        v.label.visible = r * this.camera.scale > 4 && (this.quality !== "low" || v.own);
       }
     }
     for (const [id, v] of this.views) {
       if (!seen.has(id)) {
         if (!v.retiring) v.retiring = now;
-        const progress = reduced ? 1 : Math.min(1, (now - v.retiring) / 120);
+        const eater = this.views.get(this.absorptions.get(id) ?? -1);
+        const progress = reduced ? 1 : Math.min(1, (now - v.retiring) / (eater ? 170 : 100));
+        if (eater) {
+          const pose = absorptionPose(v.x, v.y, eater.sprite.x, eater.sprite.y, progress);
+          v.sprite.position.set(pose.x, pose.y);
+          v.sprite.scale.set(v.radius * 2 / this.circle.width * pose.scale);
+          v.sprite.zIndex = eater.sprite.zIndex + .001;
+        }
         v.sprite.alpha = 1 - progress;
         if (v.label) v.label.alpha = 1 - progress;
         if (progress >= 1) {
+          if (v.sprite instanceof MeshSimple) v.sprite.geometry.destroy();
           v.sprite.destroy();
           v.label?.destroy();
           this.views.delete(id);
+          this.absorptions.delete(id);
         }
       }
     }
@@ -306,12 +321,13 @@ export class ArenaRenderer {
     cancelAnimationFrame(this.frame);
     this.resize?.disconnect();
     if (this.ready) {
+      for (const view of this.views.values()) if (view.sprite instanceof MeshSimple) view.sprite.geometry.destroy();
       this.stage.destroy({ children: true });
       this.renderer.destroy({ removeView: true });
       this.circle.destroy(true);
       this.virus.destroy(true);
-      this.cellShape.destroy();
     }
     this.views.clear();
+    this.absorptions.clear();
   }
 }

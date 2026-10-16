@@ -115,8 +115,8 @@ export function virusPoints(tips = 48): number[] {
 export function cellDeformation(speed: number, impulseAge: number, reduced: boolean) {
   if (reduced) return { x: 1, y: 1 };
   const age = Math.max(0, impulseAge);
-  const bounce = age < 700 ? Math.sin(age * Math.PI / 160) * Math.exp(-age / 160) * .04 : 0;
-  const x = Math.max(.94, Math.min(1.065, 1 + Math.min(.04, Math.max(0, speed) / 18000) + bounce));
+  const bounce = age < 700 ? Math.sin(age * Math.PI / 160) * Math.exp(-age / 160) * .01 : 0;
+  const x = Math.max(.98, Math.min(1.025, 1 + Math.min(.012, Math.max(0, speed) / 50000) + bounce));
   return { x, y: 1 / x };
 }
 
