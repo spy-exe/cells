@@ -22,7 +22,7 @@ test("expedição real é solo, move e retoma a mesma semente",async({page},info
  const resumed=await (await page.request.get("/api/expedition")).json();
  expect(resumed.seed_label).toBe(first.seed_label);expect(resumed.revision).toBe(first.revision);
  expect(resumed.seconds_left).toBeLessThanOrEqual(first.seconds_left);
- await page.screenshot({path:`artifacts/qa-expedition-${info.project.name}.png`});
+ await page.screenshot({path:`artifacts/${process.env.E2E_BASE_URL?.startsWith("https://cells.malha.app")?"public":"qa"}-expedition-${info.project.name}.png`});
  expect(errors).toEqual([]);
 });
 test("cenário visual: mutações, pausa, resultado e nova expedição",async({page},info)=>{

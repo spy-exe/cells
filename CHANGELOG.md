@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.0
+
+- Enable the experimental solo Expedição on production after establishing the
+  compatible0.3.1 checkpoint baseline: three timed sectors, increasing tactical
+  waves, a Sentinela, two choices of persistent run mutations and new seeded runs.
+- Classic and AI Arena retain their own rules; no cross-mode upgrades.
+
 ## 0.3.1
 
 - Organic vector membranes and short food-absorption animations, with reduced motion.
