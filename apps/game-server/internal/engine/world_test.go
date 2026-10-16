@@ -106,6 +106,27 @@ func TestMovementMassAndBounds(t *testing.T) {
 		}
 	}
 }
+func TestMovementSlowsNearCursorWithoutChangingFarSpeed(t *testing.T) {
+	w := empty()
+	a := w.AddPlayer("Near", false, "")
+	b := w.AddPlayer("Far", false, "")
+	place(w, a, 300, 300, 36)
+	place(w, b, 300, 900, 36)
+	_ = w.Input(a, 310, 300, 0)
+	_ = w.Input(b, 1300, 900, 0)
+	w.Step()
+	near, far := w.Cells(a)[0].X-300, w.Cells(b)[0].X-300
+	if near >= far*.3 || math.Abs(far-220.0/30) > .001 {
+		t.Fatal("cursor falloff", near, far)
+	}
+	for range 120 {
+		w.Step()
+	}
+	if w.Cells(a)[0].X > 310.001 || w.Cells(a)[0].X < 309.5 {
+		t.Fatal("cursor overshoot or failed convergence", w.Cells(a))
+	}
+	invariant(t, w)
+}
 func TestConsumptionRatioAndContainment(t *testing.T) {
 	w := empty()
 	a := w.AddPlayer("A", false, "")

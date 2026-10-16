@@ -36,7 +36,7 @@ test("AI Arena oferece cinco perfis e bots que se movem no mundo real", async ({
   await page.getByRole("button", { name: "Entrar na arena" }).click();
   await expect
     .poll(() => current()?.leaderboard.filter((p) => p.bot).length)
-    .toBe(8);
+    .toBeGreaterThanOrEqual(9);
   await expect(page.getByRole("img", { name: /Arena Cells/ })).toBeVisible();
   // A legitimate spectator follows the leader. Never assume that enemies are
   // inside a newly spawned human's view on a large production map.

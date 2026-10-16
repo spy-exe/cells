@@ -13,6 +13,76 @@ import (
 
 type memoryCheckpoint struct{ rooms []store.SavedRoom }
 
+func TestPublicPopulationAndPrivateClassicIsolation(t *testing.T) {
+	for _, scene := range []struct {
+		mode, room string
+		want       int
+	}{{"classic", "", 24}, {"arena", "", 32}, {"arena", "friends", 32}, {"classic", "friends", 0}} {
+		h := New(nil, 1600)
+		p, err := h.Join(store.Session{Hash: "population", Nickname: "Player", Mode: scene.mode, Room: scene.room, Profile: "balanced"}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		n := 0
+		for _, player := range h.rooms[p.Room].World.Players {
+			if player.Bot {
+				n++
+			}
+		}
+		if n != scene.want {
+			t.Fatalf("%s/%s bots=%d want=%d", scene.mode, scene.room, n, scene.want)
+		}
+		if err = h.rooms[p.Room].World.Valid(); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+func TestReloadBackfillsBotsWithoutDuplicatingExistingPopulation(t *testing.T) {
+	backend := &memoryCheckpoint{}
+	h := New(backend, 1600)
+	p, err := h.Join(store.Session{Hash: "migration", Nickname: "Player", Mode: "arena", Profile: "aggressive"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := h.rooms[p.Room]
+	var remove []uint32
+	for _, player := range r.World.Players {
+		if player.Bot && len(remove) < 24 {
+			remove = append(remove, player.ID)
+		}
+	}
+	for _, id := range remove {
+		r.World.RemovePlayer(id)
+	}
+	if err = h.Save(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		loaded := New(backend, 1600)
+		if err = loaded.Load(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+		bots := 0
+		for _, player := range loaded.rooms[p.Room].World.Players {
+			if player.Bot {
+				bots++
+				if player.Profile != "aggressive" {
+					t.Fatal("profile changed")
+				}
+			}
+		}
+		if bots != 32 {
+			t.Fatal("migration population", bots)
+		}
+		if err = loaded.rooms[p.Room].World.Valid(); err != nil {
+			t.Fatal(err)
+		}
+		if err = loaded.Save(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 func TestRunSummaryUsesPrivateIdentityAndFreezesAtDeath(t *testing.T) {
 	h := New(nil, 1600)
 	a, _ := h.Join(store.Session{Hash: "private-a", Nickname: "A", Mode: "classic", Room: "summary"}, nil)

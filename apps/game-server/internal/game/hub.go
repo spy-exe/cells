@@ -15,6 +15,7 @@ import (
 	"log/slog"
 	"maps"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -94,6 +95,14 @@ func (h *Hub) Load(ctx context.Context) error {
 			}
 		}
 		h.rooms[v.Key] = &r
+		profile := "balanced"
+		for _, p := range r.World.Players {
+			if p.Bot && bot.ValidProfile(p.Profile) {
+				profile = p.Profile
+				break
+			}
+		}
+		populateBots(&r, r.World.Config.Mode, strings.Contains(v.Key, "-private-"), profile)
 	}
 	return nil
 }
@@ -186,16 +195,7 @@ func (h *Hub) Join(s store.Session, c *websocket.Conn) (*Peer, error) {
 		r = &Room{World: engine.New(binary.LittleEndian.Uint64(seed[:]), cfg), Identities: map[string]uint32{}, Absent: map[uint32]time.Time{}, Peers: map[uint32]*Peer{}, Memories: map[uint32]*bot.Memory{}}
 		// Private Classic rooms stay human-only, making friend sessions and public
 		// validation independent of bot interference. AI Arena always has agents.
-		if s.Room == "" || s.Mode == engine.Arena {
-			names := []string{"Mica", "Nori", "Vértice", "Órbita", "Talo", "Nimbo", "Coral", "Pingo"}
-			for i, name := range names {
-				profile := bot.Profiles[i%len(bot.Profiles)]
-				if s.Mode == engine.Arena && bot.ValidProfile(s.Profile) {
-					profile = s.Profile
-				}
-				r.World.AddPlayer(name, true, profile)
-			}
-		}
+		populateBots(r, s.Mode, s.Room != "", s.Profile)
 		h.rooms[key] = r
 	}
 	if len(r.Peers) >= 32 {
@@ -218,6 +218,29 @@ func (h *Hub) Join(s store.Session, c *websocket.Conn) (*Peer, error) {
 	delete(r.Absent, id)
 	p.Frames <- protocol.Snapshot(r.World.Observe(id))
 	return p, nil
+}
+
+func populateBots(r *Room, mode string, private bool, profile string) {
+	target := 0
+	if mode == engine.Arena {
+		target = 32
+	} else if mode == engine.Classic && !private {
+		target = 24
+	}
+	count := 0
+	for _, p := range r.World.Players {
+		if p.Bot {
+			count++
+		}
+	}
+	names := []string{"Mica", "Nori", "Vértice", "Órbita", "Talo", "Nimbo", "Coral", "Pingo", "Lume", "Brisa", "Âmbar", "Cais", "Silex", "Névoa", "Vega", "Pólux", "Musgo", "Gaia", "Iris", "Cedro", "Duna", "Fluxo", "Halo", "Lótus", "Nacre", "Onda", "Prisma", "Raiz", "Sal", "Trama", "Una", "Zênite"}
+	for i := count; i < target; i++ {
+		policy := bot.Profiles[i%len(bot.Profiles)]
+		if mode == engine.Arena && bot.ValidProfile(profile) {
+			policy = profile
+		}
+		r.World.AddPlayer(names[i], true, policy)
+	}
 }
 func (h *Hub) keys() []string {
 	keys := make([]string, 0, len(h.rooms))

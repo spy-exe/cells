@@ -350,6 +350,7 @@ func (w *World) Step() {
 				dx, dy := p.TargetX-e.X, p.TargetY-e.Y
 				d := math.Hypot(dx, dy)
 				speed := 220 * math.Pow(e.Mass/SpawnMass, -.25)
+				speed *= min(1, d/(Radius(e.Mass)*2.5))
 				if d > .01 {
 					move := min(d, speed/TickRate)
 					e.X += dx / d * move
