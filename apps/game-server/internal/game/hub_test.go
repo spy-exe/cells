@@ -216,3 +216,52 @@ func TestCheckpointIOCannotPauseTicks(t *testing.T) {
 		t.Fatal("database I/O stalled the simulation")
 	}
 }
+
+func TestTacticalPopulationSpreadsWorkAndRetainsFiveHzPerAgent(t *testing.T) {
+	h := New(nil, 1600)
+	p, err := h.Join(store.Session{Hash: "schedule", Nickname: "Observer", Mode: "arena", Profile: "balanced"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := h.rooms[p.Room]
+	counts := map[uint32]int{}
+	peak := 0
+	for tick := uint64(0); tick < 12; tick++ {
+		r.World.Tick = tick
+		before := map[uint32]uint64{}
+		for id, m := range r.Memories {
+			for _, track := range m.Seen {
+				before[id] = max(before[id], track.Tick)
+			}
+		}
+		thinkBots(r)
+		changed := 0
+		for _, player := range r.World.Players {
+			if !player.Bot {
+				continue
+			}
+			m := r.Memories[player.ID]
+			if m == nil {
+				continue
+			}
+			var latest uint64
+			for _, track := range m.Seen {
+				latest = max(latest, track.Tick)
+			}
+			old, existed := before[player.ID]
+			if !existed || latest != old {
+				changed++
+				counts[player.ID]++
+			}
+		}
+		peak = max(peak, changed)
+	}
+	if len(counts) != 32 || peak > 6 {
+		t.Fatal("tactical work still bursts", len(counts), peak)
+	}
+	for id, n := range counts {
+		if n != 2 {
+			t.Fatalf("agent %d thought %d times in12 ticks", id, n)
+		}
+	}
+}

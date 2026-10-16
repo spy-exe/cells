@@ -387,25 +387,8 @@ func (h *Hub) Run(ctx context.Context) {
 			for _, key := range h.keys() {
 				r := h.rooms[key]
 				active := r.Expedition == nil || r.Expedition.Phase == "running"
-				if active && r.World.Tick%6 == 0 {
-					for _, player := range r.World.Players {
-						if !player.Bot {
-							continue
-						}
-						if !player.Alive {
-							if r.Expedition == nil && r.World.Tick > player.DiedAt+90 {
-								_ = r.World.Respawn(player.ID)
-							}
-							continue
-						}
-						memory := r.Memories[player.ID]
-						if memory == nil {
-							memory = &bot.Memory{}
-							r.Memories[player.ID] = memory
-						}
-						intent := bot.Decide(r.World.Observe(player.ID), memory, player.Profile)
-						_ = r.World.Input(player.ID, intent.X, intent.Y, intent.Actions)
-					}
+				if active {
+					thinkBots(r)
 				}
 				for id, until := range r.Absent {
 					if time.Now().After(until) {
@@ -533,4 +516,32 @@ func (h *Hub) Stats() map[string]any {
 		p99 = samples[int(float64(len(samples)-1)*.99)]
 	}
 	return map[string]any{"players": players, "bots": bots, "rooms": len(h.rooms), "entities": entities, "ticks": h.Ticks.Load(), "tick_p95_ms": p95, "tick_p99_ms": p99, "bytes": h.Bytes.Load(), "dropped": h.Dropped.Load(), "rejected": h.Rejected.Load()}
+}
+
+// Spread five-Hz tactical decisions across six server ticks.
+func thinkBots(r *Room) {
+	slot := uint64(0)
+	for _, player := range r.World.Players {
+		if !player.Bot {
+			continue
+		}
+		phase := slot % 6
+		slot++
+		if r.World.Tick%6 != phase {
+			continue
+		}
+		if !player.Alive {
+			if r.Expedition == nil && r.World.Tick > player.DiedAt+90 {
+				_ = r.World.Respawn(player.ID)
+			}
+			continue
+		}
+		memory := r.Memories[player.ID]
+		if memory == nil {
+			memory = &bot.Memory{}
+			r.Memories[player.ID] = memory
+		}
+		intent := bot.Decide(r.World.Observe(player.ID), memory, player.Profile)
+		_ = r.World.Input(player.ID, intent.X, intent.Y, intent.Actions)
+	}
 }
