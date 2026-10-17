@@ -53,3 +53,23 @@ it("requires disappearance, a nearby existing cell and enough observed growth", 
 it("keeps complete Unicode code points in tiny centered captions",()=>{
  expect(cellCaption("🧬Bioma",false,5).text).toBe("🧬");
 });
+it("tracks a captured visible cell, ejected mass and a same-owner recombination",()=>{
+ const eater={id:10,owner:7,kind:2,x:100,y:100,mass:225,team:0,name:"A",bot:false};
+ const item={...eater,id:11,owner:8,x:125,mass:36,name:"B"};
+ const scene=(source:typeof item,prior=eater)=>[
+  {tick:60,self:7,entities:[prior,source]},
+  {tick:62,self:7,entities:[{...prior,mass:prior.mass+source.mass}]},
+ ] as [Snapshot,Snapshot];
+ expect(detectAbsorptions(...scene(item))).toEqual([{item:11,eater:10}]);
+ expect(detectAbsorptions(...scene({...item,kind:3,mass:12}))).toEqual([{item:11,eater:10}]);
+ expect(detectAbsorptions(...scene({...item,owner:7}, {...eater,mass:36}))).toEqual([{item:11,eater:10}]);
+});
+it("does not invent a capture by a smaller enemy, virus absorption or a reset-world merge",()=>{
+ const a={id:10,owner:7,kind:2,x:100,y:100,mass:36,team:0,name:"A",bot:false};
+ const b={...a,id:11,owner:8,x:110,mass:100};
+ const before={tick:60,self:7,entities:[a,b]} as Snapshot;
+ const after={tick:62,self:7,entities:[{...a,mass:136}]} as Snapshot;
+ expect(detectAbsorptions(before,after)).toEqual([]);
+ expect(detectAbsorptions({...before,entities:[{...a,mass:225},{...b,kind:4}]}, {...after,entities:[{...a,mass:325}]})).toEqual([]);
+ expect(detectAbsorptions({...before,entities:[{...a,mass:225},b]}, {...after,tick:1,entities:[{...a,mass:325}]})).toEqual([]);
+});

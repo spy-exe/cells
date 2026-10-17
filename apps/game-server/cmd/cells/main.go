@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-var version = "0.4.0"
+var version = "0.4.1"
 var revision = "dev"
 
 func env(key, fallback string) string {

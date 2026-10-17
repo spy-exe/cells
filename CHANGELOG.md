@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.1
+
+- Captured cells, recombining pieces and consumed ejected mass ease toward their
+  visible absorber; labels follow their body and remain below larger cells.
+- Reset worlds and insufficient observed growth cannot manufacture absorption
+  feedback; reduced-motion mode removes the travel.
+
 ## 0.4.0
 
 - Enable the experimental solo Expedição on production after establishing the

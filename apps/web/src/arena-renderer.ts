@@ -25,6 +25,7 @@ interface View {
   retiring: number;
   own: boolean;
   label: Text | null;
+  labelScale?: number;
   x: number; y: number; at: number; speed: number; angle: number;
   mass: number; impulseAt: number;
   membraneAt: number;
@@ -261,6 +262,7 @@ export class ArenaRenderer {
         }
       }
       else {
+        v.x = x; v.y = y;
         v.sprite.width = r * 2;
         v.sprite.height = r * 2;
       }
@@ -285,6 +287,7 @@ export class ArenaRenderer {
         const width = v.label.getLocalBounds().width;
         const scale = Math.min(font / 14, Math.max(0, r * this.camera.scale * 2 - 4) / Math.max(1, width));
         v.label.scale.set(scale / this.camera.scale);
+        v.labelScale = scale / this.camera.scale;
         v.label.visible = r * this.camera.scale > 4 && (this.quality !== "low" || v.own);
       }
     }
@@ -292,12 +295,18 @@ export class ArenaRenderer {
       if (!seen.has(id)) {
         if (!v.retiring) v.retiring = now;
         const eater = this.views.get(this.absorptions.get(id) ?? -1);
-        const progress = reduced ? 1 : Math.min(1, (now - v.retiring) / (eater ? 170 : 100));
+        const cell = v.sprite instanceof MeshSimple;
+        const progress = reduced ? 1 : Math.min(1, (now - v.retiring) / (eater ? cell ? 230 : 170 : 100));
         if (eater) {
           const pose = absorptionPose(v.x, v.y, eater.sprite.x, eater.sprite.y, progress);
           v.sprite.position.set(pose.x, pose.y);
-          v.sprite.scale.set(v.radius * 2 / this.circle.width * pose.scale);
-          v.sprite.zIndex = eater.sprite.zIndex + .001;
+          v.sprite.scale.set((cell ? v.radius : v.radius * 2 / this.circle.width) * pose.scale);
+          v.sprite.zIndex = eater.sprite.zIndex + (cell ? -.001 : .001);
+          if (v.label) {
+            v.label.position.set(pose.x, pose.y);
+            v.label.scale.set((v.labelScale ?? 1) * pose.scale);
+            v.label.zIndex = eater.sprite.zIndex - .0005;
+          }
         }
         v.sprite.alpha = 1 - progress;
         if (v.label) v.label.alpha = 1 - progress;

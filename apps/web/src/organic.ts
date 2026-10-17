@@ -39,14 +39,18 @@ export function absorptionPose(x: number, y: number, targetX: number, targetY: n
 
 /** Cosmetic inference requires local disappearance AND matching observed growth. */
 export function detectAbsorptions(before: Snapshot, after: Snapshot) {
+  if (after.tick < before.tick || after.self !== before.self) return [];
   const next = new Map(after.entities.map(e => [e.id, e]));
   const previous = new Map(before.entities.map(e => [e.id, e]));
   const eaters = after.entities.filter(e => e.kind === 2 && previous.has(e.id))
-    .map(e => ({ e, growth: e.mass - previous.get(e.id)!.mass + .01 }));
+    .map(e => ({ e, prior: previous.get(e.id)!, growth: e.mass - previous.get(e.id)!.mass + .05 }));
   const events: { item: number; eater: number }[] = [];
   for (const item of before.entities) {
-    if (item.kind !== 1 || next.has(item.id)) continue;
-    const candidate = eaters.filter(({ e, growth }) => growth >= item.mass * .75 && Math.hypot(e.x - item.x, e.y - item.y) <= 4 * Math.sqrt(e.mass) + 18)
+    if (![1, 2, 3].includes(item.kind) || next.has(item.id)) continue;
+    const candidate = eaters.filter(({ e, prior, growth }) =>
+      growth >= item.mass * (item.kind === 2 ? .95 : .75) &&
+      (item.kind !== 2 || item.owner === e.owner || prior.mass > item.mass * 1.18) &&
+      Math.hypot(e.x - item.x, e.y - item.y) <= 4 * Math.sqrt(e.mass) + 18)
       .sort((a, b) => Math.hypot(a.e.x - item.x, a.e.y - item.y) - Math.hypot(b.e.x - item.x, b.e.y - item.y))[0];
     if (!candidate) continue;
     candidate.growth -= item.mass;

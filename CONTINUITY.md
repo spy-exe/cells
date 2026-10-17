@@ -1,5 +1,30 @@
 # Cells — active handoff
 
+## Absorption follow-up —2026-10-16 21:50 America/Sao_Paulo
+
+Candidate0.4.1 on feat/consumption-motion extends conservative client absorption
+feedback to captured cells, same-owner merges and ejected mass. Labels follow the
+shrinking body and remain below its absorber. Ejected sprites use their last
+rendered location. Tick resets/identity changes block false effects. No Go gameplay,
+DB or binary-protocol change.19TS passed; real WebGL merge-caption regression was
+RED on public0.4.0 (31 old-location pixels), GREEN in QA (0), along with existing
+center/depth cases on desktop/mobile. Follow docs/releases/0.4.1.md and exact CI.
+
+Production before this candidate is0.4.0 /e7ac8a0, verified mainCI38976489559 and
+22/22 public browser cases. Semantic v0.3.1/v0.4.0 include verified builds, actual
+screenshots, measured load and detailed continuity/proof assets. A real public
+Rogue run won all3 sectors, chose digestion twice, preserved victory/mutations
+across service restart, then restarted cleanly with a new seed. Backup restored
+in an isolated DB and actually loaded/validated by native0.4.0; clone removed.
+Prometheus jobcells up1. Root rollback baseline97e64bc was compatible with Rogue.
+
+User requires every validated increment published promptly. Finish this small
+release: commit/push, mainCI, stop QA/remove only cells-qa nft rule to free8081,
+trigger cells-deploy, verify exact public SHA, run relevant public/browser smoke,
+attach evidence/next prompt to semanticv0.4.1. Offhost backup/Safari/physical devices/
+WAN soak/future community/Teams are pending; prior PPO was rejected, CT221 stopped.
+No new training is implied by this visual patch. Historical handoffs follow.
+
 ## Current organic release —2026-10-16 19:33 America/Sao_Paulo
 
 Production **0.3.1 /97e64bcd018a828292a2856f70baaab622dff1fe** was verified at
