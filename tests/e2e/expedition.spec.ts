@@ -1,6 +1,7 @@
 import {test,expect} from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import {readFileSync} from "node:fs";
+import {continuesExpedition} from "./helpers/expedition";
 import type {ExpeditionRun} from "../../apps/web/src/Expedition";
 const offers=[{id:"cilia",name:"Cílios",detail:"+10% de velocidade de movimento."},{id:"digestion",name:"Metabolismo",detail:"+20% de massa recebida dos alimentos."},{id:"cohesion",name:"Coesão",detail:"Recombinação 20% mais cedo após dividir."}];
 test("expedição real é solo, move e retoma a mesma semente",async({page},info)=>{
@@ -20,7 +21,7 @@ test("expedição real é solo, move e retoma a mesma semente",async({page},info
  await page.reload();
  await expect(page.getByLabel("Objetivo da expedição")).toBeVisible();
  const resumed=await (await page.request.get("/api/expedition")).json();
- expect(resumed.seed_label).toBe(first.seed_label);expect(resumed.revision).toBe(first.revision);
+ expect(continuesExpedition(first,resumed),JSON.stringify({before:first,after:resumed})).toBe(true);
  expect(resumed.seconds_left).toBeLessThanOrEqual(first.seconds_left);
  await page.screenshot({path:`artifacts/${process.env.E2E_BASE_URL?.startsWith("https://cells.malha.app")?"public":"qa"}-expedition-${info.project.name}.png`});
  expect(errors).toEqual([]);

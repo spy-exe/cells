@@ -8,7 +8,7 @@ allegiance, friendly consumption protection, three-row collective scoreboard and
 faction-colored ejected mass. Default flag0 hides new entries only. Existing
 schema/binaryv1 already support Teams;0.4.1 is a compatible rollback application.
 
-20TS/lint/typecheck passed after an additional allied-absorption RED/GREEN guard; frontend build previously passed. Full Go race/DB/vet passed after faction metadata
+22TS/lint/typecheck passed after allied-absorption guard and strict reload-continuity helper; frontend build previously passed. Full Go race/DB/vet passed after faction metadata
 and checkpoint assertions. Core90.6%, expedition95.8%, protocol93%, bot90.2%,
 training90%, store87.5% statements. Two actual two-client browser tests plus two
 UI/axe/color fixtures passed across desktop/mobile. Initial0bot population and
@@ -17,6 +17,10 @@ wrong ejected faction were reproduced RED before fixing. Read game-design/teams.
 Final Teams load gate PASSED on source687ce9d:100humans+210bots,29.996ticks/s,
 p99tick25.081ms,RSS32.8MB,0disconnects/0drops. Raw docs/performance/0.5.0-teams-load.json.
 Initial featureCI38989376104 stopped at gofmt(load CLI), corrected before main.
+MainCI38989820936 had27/28 cases pass; Rogue legitimately died during reload.
+Fixed the test contract to allow exactly one valid automatic phase change while
+keeping seed/sector/mutations, with positive/negative unit cases; no game-rule change.
+Both public real reload cases passed. FinalCI must revalidate all28 cases.
 
 Historical plan: commit/push feature, stop QA before final load; build exact committed native
 binary and run25/50/100 loopback clients via cells-load-mode=teams (GOMAX2,
