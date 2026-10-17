@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.0
+
+- Teams: Musgo, Coral and Maré compete for living mass, with server-balanced
+  allegiance and30 tactical bots distributed by faction/profile.
+- Collective scoreboard and persistent own-team identity; faction-colored
+  ejected mass. Existing Classic, Arena and Expedição keep their rules.
+- Independent new-entry flag and loopback load CLI mode selection.
+
 ## 0.4.1
 
 - Captured cells, recombining pieces and consumed ejected mass ease toward their

@@ -116,7 +116,7 @@ func (s *Server) routes(mux *http.ServeMux) {
 			return
 		}
 		input.Nickname = strings.TrimSpace(input.Nickname)
-		available := input.Mode == "classic" || input.Mode == "arena" || input.Mode == "rogue" && s.config.ExpeditionEnabled && input.Room == "" && !input.Spectate
+		available := input.Mode == "classic" || input.Mode == "arena" || input.Mode == "teams" && s.config.TeamsEnabled || input.Mode == "rogue" && s.config.ExpeditionEnabled && input.Room == "" && !input.Spectate
 		if !nickname(input.Nickname) || !available || len(input.Room) > 32 {
 			writeJSON(w, 400, map[string]string{"error": "Use um apelido de 2 a 20 caracteres e um modo disponível."})
 			return

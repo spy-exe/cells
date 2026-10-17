@@ -237,6 +237,8 @@ func populateBots(r *Room, mode string, private bool, profile string) {
 	target := 0
 	if mode == engine.Arena {
 		target = 32
+	} else if mode == engine.Teams {
+		target = 30
 	} else if mode == engine.Classic && !private {
 		target = 24
 	}

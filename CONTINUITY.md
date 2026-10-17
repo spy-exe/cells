@@ -1,5 +1,33 @@
 # Cells — active handoff
 
+## Teams candidate —2026-10-16 22:05 America/Sao_Paulo
+
+Candidate0.5.0 on feat/teams, from live0.4.1 /b503795. New CELLS_TEAMS=1 gate,
+30bots(10each faction,2each profile per faction), server-balanced humans, saved
+allegiance, friendly consumption protection, three-row collective scoreboard and
+faction-colored ejected mass. Default flag0 hides new entries only. Existing
+schema/binaryv1 already support Teams;0.4.1 is a compatible rollback application.
+
+19TS/lint/typecheck/build passed. Full Go race/DB/vet passed after faction metadata
+and checkpoint assertions. Core90.6%, expedition95.8%, protocol93%, bot90.2%,
+training90%, store87.5% statements. Two actual two-client browser tests plus two
+UI/axe/color fixtures passed across desktop/mobile. Initial0bot population and
+wrong ejected faction were reproduced RED before fixing. Read game-design/teams.md.
+
+Next: commit/push feature, stop QA before final load; build exact committed native
+binary and run25/50/100 loopback clients via cells-load-mode=teams (GOMAX2,
+server150%CPU,client50%,fresh own DB,30seconds/stage,QA/AI lab stopped). Record
+actual data; do not call targets measurements. Only then push main after gates,
+back up own protected env, enable CELLS_TEAMS=1, guarded deploy, verify exact public
+revision/modes, run28 public E2E cases and attach semantic release/proofs. Remove
+only cells-qa nft rule/free8081 before candidate deployment.
+
+0.4.1 mainCI38988270840/public24/24 passed; release contains build/checksum/report/
+screenshots/continuity.0.4.0 release has actual public Rogue victory/mutations/
+service-restart/new-seed proof and native backup restore into a disposable DB.
+CT221 remains stopped/PPO rejected. User requires prompt validated live increments.
+Older handoffs below are historical, not evidence of current production SHA.
+
 ## Absorption follow-up —2026-10-16 21:50 America/Sao_Paulo
 
 Candidate0.4.1 on feat/consumption-motion extends conservative client absorption

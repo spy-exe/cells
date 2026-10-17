@@ -60,12 +60,12 @@ func headers(origin, source string) http.Header {
 	}
 	return h
 }
-func join(ctx context.Context, target, origin string, i int, synthetic bool) (*client, error) {
+func join(ctx context.Context, target, origin string, i int, synthetic bool, mode string) (*client, error) {
 	source := ""
 	if synthetic {
 		source = fmt.Sprintf("192.0.2.%d", i+1)
 	}
-	body, _ := json.Marshal(map[string]string{"nickname": fmt.Sprintf("Load %03d", i), "mode": "arena", "profile": "balanced"})
+	body, _ := json.Marshal(map[string]string{"nickname": fmt.Sprintf("Load %03d", i), "mode": mode, "profile": "balanced"})
 	req, _ := http.NewRequestWithContext(ctx, "POST", target+"/api/guest", bytes.NewReader(body))
 	req.Header = headers(origin, source)
 	req.Header.Set("Content-Type", "application/json")
@@ -157,11 +157,13 @@ func (c *client) run(ctx context.Context, target, origin string, index int) erro
 	}
 }
 func main() {
-	target := flag.String("target", "http://127.0.0.1:8082", "isolated server")
+	mode := flag.String("mode", "arena", "public rules mode: arena, classic or teams")
+ target := flag.String("target", "http://127.0.0.1:8082", "isolated server")
 	metricURL := flag.String("metrics", "http://127.0.0.1:9109/metrics", "private metrics")
 	duration := flag.Duration("duration", 20*time.Second, "duration per stage")
 	synthetic := flag.Bool("synthetic-clients", false, "loopback-only distinct RFC5737 client buckets")
 	flag.Parse()
+ if *mode != "arena" && *mode != "classic" && *mode != "teams" { fmt.Fprintln(os.Stderr,"unsupported load mode"); os.Exit(2) }
 	u, err := url.Parse(*target)
 	if err != nil || u.Scheme != "http" {
 		panic("use explicit HTTP isolated target")
@@ -174,7 +176,7 @@ func main() {
 	defer cancel()
 	clients := make([]*client, 100)
 	for i := range clients {
-		clients[i], err = join(ctx, *target, *target, i, *synthetic)
+		clients[i], err = join(ctx, *target, *target, i, *synthetic, *mode)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
@@ -221,7 +223,7 @@ func main() {
 			intervals = append(intervals, c.intervals...)
 			rtt = append(rtt, c.rtt...)
 		}
-		result := map[string]any{"connections": count, "seconds": elapsed, "snapshots": frames, "snapshot_interval_p95_ms": quantile(intervals, .95), "snapshot_interval_p99_ms": quantile(intervals, .99), "rtt_p95_ms": quantile(rtt, .95), "rtt_p99_ms": quantile(rtt, .99), "bytes_received": bytes, "disconnects": disconnects, "empty_clients": empty, "ticks_per_second": (after["cells_ticks_total"] - before["cells_ticks_total"]) / elapsed, "tick_window_p95_ms": after["cells_tick_p95_ms"], "tick_window_p99_ms": after["cells_tick_p99_ms"], "cpu_core_equivalents": (after["process_cpu_seconds_total"] - before["process_cpu_seconds_total"]) / elapsed, "rss_bytes": after["process_resident_memory_bytes"], "bots_at_end": after["cells_bots"], "rooms_at_end": after["cells_rooms"], "dropped_snapshots": after["cells_dropped_total"] - before["cells_dropped_total"], "synthetic_distinct_rate_buckets": *synthetic}
+		result := map[string]any{"mode": *mode, "connections": count, "seconds": elapsed, "snapshots": frames, "snapshot_interval_p95_ms": quantile(intervals, .95), "snapshot_interval_p99_ms": quantile(intervals, .99), "rtt_p95_ms": quantile(rtt, .95), "rtt_p99_ms": quantile(rtt, .99), "bytes_received": bytes, "disconnects": disconnects, "empty_clients": empty, "ticks_per_second": (after["cells_ticks_total"] - before["cells_ticks_total"]) / elapsed, "tick_window_p95_ms": after["cells_tick_p95_ms"], "tick_window_p99_ms": after["cells_tick_p99_ms"], "cpu_core_equivalents": (after["process_cpu_seconds_total"] - before["process_cpu_seconds_total"]) / elapsed, "rss_bytes": after["process_resident_memory_bytes"], "bots_at_end": after["cells_bots"], "rooms_at_end": after["cells_rooms"], "dropped_snapshots": after["cells_dropped_total"] - before["cells_dropped_total"], "synthetic_distinct_rate_buckets": *synthetic}
 		encoded, _ := json.Marshal(result)
 		fmt.Println(string(encoded))
 		if disconnects > 0 || empty > 0 {

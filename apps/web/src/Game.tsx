@@ -18,6 +18,7 @@ import {
 import { ArenaRenderer } from "./arena-renderer";
 import { GrowthFeedback } from "./motion";
 import { GameSound } from "./sound";
+import { Teams } from "./Teams";
 import { Expedition, useExpedition } from "./Expedition";
 
 interface Props {
@@ -333,7 +334,7 @@ export function Game({ nickname, mode, onLeave }: Props) {
             : "Entrando…"}
         </small>
       </section>
-      {mode !== "rogue" && <aside className="leaderboard" aria-label="Maiores células">
+      {mode !== "rogue" && mode !== "teams" && <aside className="leaderboard" aria-label="Maiores células">
         <h2>
           Na liderança<span>TOP 10</span>
         </h2>
@@ -349,6 +350,7 @@ export function Game({ nickname, mode, onLeave }: Props) {
           ))}
         </ol>
       </aside>}
+      {mode === "teams" && <Teams snapshot={snapshot} />}
       <div className="connection-hud">
         <Wifi size={12} />
         <span>{connection}</span>

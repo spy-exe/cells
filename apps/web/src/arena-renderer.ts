@@ -269,7 +269,7 @@ export class ArenaRenderer {
       v.sprite.tint =
         e.kind === 4
           ? 0x8bae65
-          : s.teams && e.kind === 2
+          : s.teams && (e.kind === 2 || e.kind === 3)
             ? [0xa6bd65, 0xe89b87, 0x88b6d7][e.team % 3]
             : (e.kind === 1
                 ? [0x729e19, 0xe27747, 0x696ed0, 0x27a3b1, 0xc79531, 0xbd5c95]

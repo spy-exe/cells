@@ -265,3 +265,59 @@ func TestTacticalPopulationSpreadsWorkAndRetainsFiveHzPerAgent(t *testing.T) {
 		}
 	}
 }
+
+func TestTeamsPopulationBalancesColorsAndTacticalProfiles(t *testing.T) {
+	backend := &memoryCheckpoint{}
+	h := New(backend, 1600)
+	peer, err := h.Join(store.Session{Hash: "teams-a", Nickname: "A", Mode: "teams", Room: "teams-test", Profile: "balanced"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := h.rooms[peer.Room]
+	counts := [3]int{}
+	profiles := map[string][3]int{}
+	for _, p := range r.World.Players {
+		if p.Bot {
+			counts[p.Team]++
+			n := profiles[p.Profile]
+			n[p.Team]++
+			profiles[p.Profile] = n
+		}
+	}
+	if counts != [3]int{10, 10, 10} {
+		t.Fatal("teams lack a balanced population", counts)
+	}
+	for _, profile := range bot.Profiles {
+		if profiles[profile] != [3]int{2, 2, 2} {
+			t.Fatal("unfair tactical profiles", profile, profiles[profile])
+		}
+	}
+	b, err := h.Join(store.Session{Hash: "teams-b", Nickname: "B", Mode: "teams", Room: "teams-test", Profile: "balanced"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.World.Player(peer.Player).Team == r.World.Player(b.Player).Team {
+		t.Fatal("new humans did not enter the least-populated teams")
+	}
+	if err = r.World.Valid(); err != nil {
+		t.Fatal(err)
+	}
+
+	if err = h.Save(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	restored := New(backend, 1600)
+	if err = restored.Load(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	loaded := restored.rooms[peer.Room]
+	for _, p := range r.World.Players {
+		other := loaded.World.Player(p.ID)
+		if other == nil || other.Team != p.Team || other.Profile != p.Profile {
+			t.Fatal("checkpoint changed allegiance", p.ID)
+		}
+	}
+	if r.World.Observe(peer.Player).TeamMass != loaded.World.Observe(peer.Player).TeamMass {
+		t.Fatal("team mass lost on reload")
+	}
+}

@@ -330,7 +330,7 @@ func (w *World) actions(p *Player) {
 			w.Sinks += EjectCost - EjectMass
 			dx, dy := direction(p.TargetX-e.X, p.TargetY-e.Y)
 			distance := Radius(e.Mass) + Radius(EjectMass) + 3
-			pellet := Entity{ID: w.next(), Owner: p.ID, Kind: Ejected, Mass: EjectMass, X: e.X + dx*distance, Y: e.Y + dy*distance, VX: dx * 650, VY: dy * 650, Born: w.Tick}
+			pellet := Entity{ID: w.next(), Owner: p.ID, Kind: Ejected, Team: p.Team, Mass: EjectMass, X: e.X + dx*distance, Y: e.Y + dy*distance, VX: dx * 650, VY: dy * 650, Born: w.Tick}
 			w.clamp(&pellet)
 			w.Entities = append(w.Entities, pellet)
 			pellets++

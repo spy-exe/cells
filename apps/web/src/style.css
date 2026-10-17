@@ -1019,3 +1019,10 @@ summary:focus-visible {
 @media(max-width:600px){.expedition-hud{top:78px;right:16px;width:174px;padding:12px;}.expedition-hud p{font-size:10px;margin:7px 0;}.expedition-hud small{font-size:9px;}.expedition-overlay h1{font-size:27px;}.mutation-options{margin-top:12px;gap:8px;}.mutation-option{padding:12px;min-height:68px;}}
 @media(prefers-reduced-motion:reduce){.expedition-hud progress::-webkit-progress-value,.mutation-option{transition:none;}}
 html[data-motion="reduce"] .mutation-option,html[data-motion="reduce"] progress::-webkit-progress-value{transition:none;}
+.team-shares{display:flex;width:100%;height:8px;border-radius:10px;overflow:hidden;background:var(--line);margin:16px 0 10px;}
+.team-shares i{display:block;transition:width .4s ease;}
+.team-standings li::before{display:none;}
+.team-dot{display:inline-block;width:8px;height:8px;flex-shrink:0;border-radius:50%;}
+.team-standings>p{font-size:10px;line-height:1.5;margin-top:12px;color:var(--muted);}
+@media(prefers-reduced-motion:reduce){.team-shares i{transition:none;}}
+html[data-motion="reduce"] .team-shares i{transition:none;}

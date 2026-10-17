@@ -506,3 +506,25 @@ func TestActionsBufferOnlyUntilTheirShortCooldown(t *testing.T) {
 	}
 	invariant(t, w)
 }
+
+func TestTeamsEjectedMassRetainsItsFaction(t *testing.T) {
+	w := New(17, Config{Size: 1600, Mode: Teams})
+	w.AddPlayer("Green", false, "")
+	id := w.AddPlayer("Coral", false, "")
+	place(w, id, 800, 800, 100)
+	_ = w.Input(id, 1400, 800, Eject)
+	w.Step()
+	found := false
+	for _, e := range w.Entities {
+		if e.Kind == Ejected && e.Owner == id {
+			found = true
+			if e.Team != w.Player(id).Team {
+				t.Fatal("ejected mass changed faction", e.Team, w.Player(id).Team)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("no ejected mass")
+	}
+	invariant(t, w)
+}

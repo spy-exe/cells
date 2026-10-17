@@ -13,6 +13,7 @@ import (
 )
 
 type Config struct {
+	TeamsEnabled                      bool
 	ExpeditionEnabled                 bool
 	Version, Revision, WebDir, Origin string
 	Ready                             func(context.Context) error
@@ -56,6 +57,9 @@ func (s *Server) Handler() http.Handler {
 		players, bots := any(0), any(0)
 		if s.config.Hub != nil {
 			modes = []string{"classic", "arena"}
+			if s.config.TeamsEnabled {
+				modes = append(modes, "teams")
+			}
 			if s.config.ExpeditionEnabled {
 				modes = append(modes, "rogue")
 			}

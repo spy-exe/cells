@@ -33,7 +33,7 @@ func TestGuestOriginValidationAndMultiplayer(t *testing.T) {
 	hub := game.New(st, 1600)
 	go hub.Run(ctx)
 	defer hub.Close(context.Background())
-	app := New(Config{ExpeditionEnabled: true, Store: st, Hub: hub, Origin: "http://cells.test", Ready: pool.Ping})
+	app := New(Config{TeamsEnabled: true, ExpeditionEnabled: true, Store: st, Hub: hub, Origin: "http://cells.test", Ready: pool.Ping})
 	ts := httptest.NewServer(app.Handler())
 	defer ts.Close()
 	join := func(origin, body string) *http.Response {
@@ -113,6 +113,23 @@ func TestGuestOriginValidationAndMultiplayer(t *testing.T) {
 		t.Fatal("own authoritative run summary", run, err)
 	}
 
+	// Teams has real binary team observations and rejects client-assigned factions.
+	teamResponse := join("http://cells.test", `{"nickname":"Teammate","mode":"teams","room":"team-test"}`)
+	teamResponse.Body.Close()
+	if teamResponse.StatusCode != 201 {
+		t.Fatal("teams rejected", teamResponse.StatusCode)
+	}
+	teamConn := conn(teamResponse)
+	defer teamConn.CloseNow()
+	_, teamFrame, teamErr := teamConn.Read(ctx)
+	if teamErr != nil || len(teamFrame) < 53 || teamFrame[11]&2 == 0 {
+		t.Fatal("missing authoritative team flag", teamErr)
+	}
+	forgedTeam := join("http://cells.test", `{"nickname":"Teammate","mode":"teams","team":2}`)
+	forgedTeam.Body.Close()
+	if forgedTeam.StatusCode != 400 {
+		t.Fatal("client assigned a faction")
+	}
 	// The solo mode is feature gated, session private, and rejects shared rooms.
 	for _, body := range []string{`{"nickname":"Solo","mode":"rogue","room":"friends"}`, `{"nickname":"Solo","mode":"rogue","spectate":true}`} {
 		bad := join("http://cells.test", body)
@@ -130,6 +147,17 @@ func TestGuestOriginValidationAndMultiplayer(t *testing.T) {
 		t.Fatal(err)
 	}
 	disabledResponse.Body.Close()
+	teamDisabledReq, _ := http.NewRequest("POST", disabled.URL+"/api/guest", bytes.NewBufferString(`{"nickname":"Teammate","mode":"teams"}`))
+	teamDisabledReq.Header.Set("Origin", "http://cells.test")
+	teamDisabledRes, err := http.DefaultClient.Do(teamDisabledReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	teamDisabledRes.Body.Close()
+	if teamDisabledRes.StatusCode != 400 {
+		t.Fatal("disabled teams admitted a guest")
+	}
+
 	if disabledResponse.StatusCode != 400 {
 		t.Fatal("disabled mode admitted guest")
 	}

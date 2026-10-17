@@ -220,6 +220,7 @@ function App() {
                 </select>
               </>
             )}
+            {mode === "teams" && <p className="foundation-note">Três equipes disputam a massa da arena. Você entra na equipe menos populosa. Aliados compartilham cor e não se devoram.</p>}
             {mode === "arena" && (
               <>
                 <label htmlFor="bot-profile">Como as IAs vão jogar?</label>
