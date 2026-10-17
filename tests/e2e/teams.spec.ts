@@ -28,12 +28,12 @@ test("cenário visual: placar de equipes é proporcional, legível e acessível"
  });
  await page.goto('/');await page.getByLabel('Modo',{exact:true}).selectOption('teams');await page.getByLabel('Como você quer aparecer?').fill('Time QA');await page.getByRole('button',{name:'Entrar na arena'}).click();
  await expect(page.getByRole('img',{name:/Arena Cells/})).toBeVisible();
- const shot=await page.screenshot(),viewport=page.viewportSize()!;
- const color=await page.evaluate(async({bytes,viewport})=>{
+ const captureColor=async()=>{const shot=await page.screenshot(),viewport=page.viewportSize()!;
+ return page.evaluate(async({bytes,viewport})=>{
   const bitmap=await createImageBitmap(new Blob([new Uint8Array(bytes)],{type:'image/png'})),canvas=new OffscreenCanvas(bitmap.width,bitmap.height),ctx=canvas.getContext('2d')!;ctx.drawImage(bitmap,0,0);
   const ratio=bitmap.width/viewport.width,scale=Math.max(viewport.width/1.9,viewport.height/1.4)/1500;
   return Array.from(ctx.getImageData(Math.round((viewport.width/2+100*scale)*ratio),Math.round(viewport.height/2*ratio),1,1).data).slice(0,3);
- },{bytes:Array.from(shot),viewport});expect(color).toEqual([136,182,215]);
+ },{bytes:Array.from(shot),viewport});};await expect.poll(captureColor).toEqual([136,182,215]);
  await expect(page.getByLabel('Disputa entre equipes')).toBeVisible();await expect(page.locator('.team-standings .is-you')).toContainText('Coral');await expect(page.getByRole('img',{name:'Musgo: 17%, Coral: 33%, Maré: 50%'})).toBeVisible();
  await expect.poll(async()=>{const widths=await page.locator('.team-shares i').evaluateAll(items=>items.map(e=>e.getBoundingClientRect().width));return widths[2]/widths[0];}).toBeCloseTo(3,1);
  expect((await new AxeBuilder({page}).analyze()).violations).toEqual([]);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);

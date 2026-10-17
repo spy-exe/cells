@@ -158,12 +158,15 @@ func (c *client) run(ctx context.Context, target, origin string, index int) erro
 }
 func main() {
 	mode := flag.String("mode", "arena", "public rules mode: arena, classic or teams")
- target := flag.String("target", "http://127.0.0.1:8082", "isolated server")
+	target := flag.String("target", "http://127.0.0.1:8082", "isolated server")
 	metricURL := flag.String("metrics", "http://127.0.0.1:9109/metrics", "private metrics")
 	duration := flag.Duration("duration", 20*time.Second, "duration per stage")
 	synthetic := flag.Bool("synthetic-clients", false, "loopback-only distinct RFC5737 client buckets")
 	flag.Parse()
- if *mode != "arena" && *mode != "classic" && *mode != "teams" { fmt.Fprintln(os.Stderr,"unsupported load mode"); os.Exit(2) }
+	if *mode != "arena" && *mode != "classic" && *mode != "teams" {
+		fmt.Fprintln(os.Stderr, "unsupported load mode")
+		os.Exit(2)
+	}
 	u, err := url.Parse(*target)
 	if err != nil || u.Scheme != "http" {
 		panic("use explicit HTTP isolated target")

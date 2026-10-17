@@ -14,7 +14,11 @@ training90%, store87.5% statements. Two actual two-client browser tests plus two
 UI/axe/color fixtures passed across desktop/mobile. Initial0bot population and
 wrong ejected faction were reproduced RED before fixing. Read game-design/teams.md.
 
-Next: commit/push feature, stop QA before final load; build exact committed native
+Final Teams load gate PASSED on source687ce9d:100humans+210bots,29.996ticks/s,
+p99tick25.081ms,RSS32.8MB,0disconnects/0drops. Raw docs/performance/0.5.0-teams-load.json.
+Initial featureCI38989376104 stopped at gofmt(load CLI), corrected before main.
+
+Historical plan: commit/push feature, stop QA before final load; build exact committed native
 binary and run25/50/100 loopback clients via cells-load-mode=teams (GOMAX2,
 server150%CPU,client50%,fresh own DB,30seconds/stage,QA/AI lab stopped). Record
 actual data; do not call targets measurements. Only then push main after gates,
