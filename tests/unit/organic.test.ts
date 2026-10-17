@@ -73,3 +73,11 @@ it("does not invent a capture by a smaller enemy, virus absorption or a reset-wo
  expect(detectAbsorptions({...before,entities:[{...a,mass:225},{...b,kind:4}]}, {...after,entities:[{...a,mass:325}]})).toEqual([]);
  expect(detectAbsorptions({...before,entities:[{...a,mass:225},b]}, {...after,tick:1,entities:[{...a,mass:325}]})).toEqual([]);
 });
+it("never shows an allied player being eaten in Teams, while allowing enemy captures",()=>{
+ const a={id:10,owner:7,kind:2,x:100,y:100,mass:225,team:0,name:"A",bot:false};
+ const b={...a,id:11,owner:8,mass:36,x:115};
+ const before={tick:60,self:7,teams:true,entities:[a,b]} as Snapshot;
+ const after={tick:62,self:7,teams:true,entities:[{...a,mass:261}]} as Snapshot;
+ expect(detectAbsorptions(before,after)).toEqual([]);
+ expect(detectAbsorptions({...before,entities:[a,{...b,team:1}]},after)).toEqual([{item:11,eater:10}]);
+});

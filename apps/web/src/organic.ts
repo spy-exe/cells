@@ -50,6 +50,7 @@ export function detectAbsorptions(before: Snapshot, after: Snapshot) {
     const candidate = eaters.filter(({ e, prior, growth }) =>
       growth >= item.mass * (item.kind === 2 ? .95 : .75) &&
       (item.kind !== 2 || item.owner === e.owner || prior.mass > item.mass * 1.18) &&
+      !(after.teams && item.kind === 2 && item.owner !== e.owner && item.team === e.team) &&
       Math.hypot(e.x - item.x, e.y - item.y) <= 4 * Math.sqrt(e.mass) + 18)
       .sort((a, b) => Math.hypot(a.e.x - item.x, a.e.y - item.y) - Math.hypot(b.e.x - item.x, b.e.y - item.y))[0];
     if (!candidate) continue;

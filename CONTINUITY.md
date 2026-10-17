@@ -8,7 +8,7 @@ allegiance, friendly consumption protection, three-row collective scoreboard and
 faction-colored ejected mass. Default flag0 hides new entries only. Existing
 schema/binaryv1 already support Teams;0.4.1 is a compatible rollback application.
 
-19TS/lint/typecheck/build passed. Full Go race/DB/vet passed after faction metadata
+20TS/lint/typecheck passed after an additional allied-absorption RED/GREEN guard; frontend build previously passed. Full Go race/DB/vet passed after faction metadata
 and checkpoint assertions. Core90.6%, expedition95.8%, protocol93%, bot90.2%,
 training90%, store87.5% statements. Two actual two-client browser tests plus two
 UI/axe/color fixtures passed across desktop/mobile. Initial0bot population and
